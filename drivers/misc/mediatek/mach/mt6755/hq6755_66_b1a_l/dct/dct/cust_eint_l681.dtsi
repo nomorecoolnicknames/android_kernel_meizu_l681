@@ -1,0 +1,86 @@
+/*
+ * Hand-built from stock Flyme l681 (Apr 12 2018) DTB.
+ * Replaces the wrong codegen.dws output that has KPD_SLIDE/MRDUMP_EXT_RST
+ * (m3max-class hardware) instead of l681's ACCDET/IRQ_NFC/SM5414_CHARGER.
+ */
+
+&eintc {
+
+	EXT_BUCK_OC@0 {
+		compatible = "mediatek, EXT_BUCK_OC-eint";
+		interrupt-parent = <&eintc>;
+		interrupts = <0 4>;
+		debounce = <0 0>;
+	};
+
+	TOUCH_PANEL@1 {
+		compatible = "mediatek, TOUCH_PANEL-eint";
+		interrupt-parent = <&eintc>;
+		interrupts = <1 2>;
+		debounce = <1 0>;
+	};
+
+	ACCDET@2 {
+		compatible = "mediatek, ACCDET-eint";
+		interrupt-parent = <&eintc>;
+		interrupts = <2 8>;
+		debounce = <2 256000>;
+	};
+
+	MSDC1_INS@3 {
+		compatible = "mediatek, MSDC1_INS-eint";
+		interrupt-parent = <&eintc>;
+		interrupts = <3 4>;
+		debounce = <3 1000>;
+	};
+
+	MSE@5 {
+		compatible = "mediatek, MSE-eint";
+		interrupt-parent = <&eintc>;
+		interrupts = <5 4>;
+		debounce = <5 0>;
+	};
+
+	ALS@6 {
+		compatible = "mediatek, ALS-eint";
+		interrupt-parent = <&eintc>;
+		interrupts = <6 8>;
+		debounce = <6 0>;
+	};
+
+	FINGERPRINT@8 {
+		compatible = "mediatek, FINGERPRINT-eint";
+		interrupt-parent = <&eintc>;
+		interrupts = <8 2>;
+		debounce = <8 0>;
+	};
+
+	GYRO@17 {
+		compatible = "mediatek, GYRO-eint";
+		interrupt-parent = <&eintc>;
+		interrupts = <17 8>;
+		debounce = <17 0>;
+	};
+
+	IRQ_NFC@26 {
+		compatible = "mediatek, IRQ_NFC-eint";
+		interrupt-parent = <&eintc>;
+		interrupts = <26 4>;
+		debounce = <26 0>;
+	};
+
+	DSI_TE@44 {
+		compatible = "mediatek, DSI_TE-eint";
+		interrupt-parent = <&eintc>;
+		interrupts = <44 1>;
+		debounce = <44 0>;
+	};
+
+	SM5414_CHARGER@101 {
+		compatible = "mediatek, SM5414_CHARGER-eint";
+		interrupt-parent = <&eintc>;
+		interrupts = <101 2>;
+		debounce = <101 0>;
+	};
+
+};
