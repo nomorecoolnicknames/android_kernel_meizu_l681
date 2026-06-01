@@ -38,6 +38,8 @@ static struct i2c_board_info kd_lens_dev __initdata = {
 #else
 #define LOG_INF(format, args...)
 #endif
+#define L681_AF_MARKER(format, args...) \
+	pr_info(AF_DRVNAME " l681_af: marker=" format, ##args)
 
 static spinlock_t g_AF_SpinLock;
 
@@ -161,11 +163,15 @@ static inline int moveAF(unsigned long a_u4Position)
 
 	if ((a_u4Position > g_u4AF_MACRO) || (a_u4Position < g_u4AF_INF)) {
 		LOG_INF("out of range\n");
+		L681_AF_MARKER("move-reject position=%lu curr=%lu inf=%lu macro=%lu reason=range\n",
+			a_u4Position, g_u4CurrPosition, g_u4AF_INF, g_u4AF_MACRO);
 		return -EINVAL;
 	}
 
 	if (g_s4AF_Opened == 1) {
 		unsigned short InitPos;
+		L681_AF_MARKER("first-open-read-start position=%lu curr=%lu\n",
+			a_u4Position, g_u4CurrPosition);
 		ret = s4AF_ReadReg(&InitPos);
 
 		if (ret == 0) {
@@ -180,6 +186,8 @@ static inline int moveAF(unsigned long a_u4Position)
 			g_u4CurrPosition = 0;
 			spin_unlock(&g_AF_SpinLock);
 		}
+		L681_AF_MARKER("first-open-read-done ret=%d init_pos=%u curr=%lu\n",
+			ret, ret == 0 ? InitPos : 0, g_u4CurrPosition);
 
 		spin_lock(&g_AF_SpinLock);
 		g_s4AF_Opened = 2;
@@ -195,6 +203,8 @@ static inline int moveAF(unsigned long a_u4Position)
 		g_i4Dir = -1;
 		spin_unlock(&g_AF_SpinLock);
 	} else {
+		L681_AF_MARKER("move-noop position=%lu curr=%lu\n",
+			a_u4Position, g_u4CurrPosition);
 		return 0;
 	}
 
@@ -209,12 +219,18 @@ static inline int moveAF(unsigned long a_u4Position)
 	g_i4MotorStatus = 0;
 	spin_unlock(&g_AF_SpinLock);
 
+	L681_AF_MARKER("move-try curr=%lu target=%lu dir=%ld\n",
+		g_u4CurrPosition, g_u4TargetPosition, g_i4Dir);
 	if (s4AF_WriteReg((unsigned short)g_u4TargetPosition) == 0) {
 		spin_lock(&g_AF_SpinLock);
 		g_u4CurrPosition = (unsigned long)g_u4TargetPosition;
 		spin_unlock(&g_AF_SpinLock);
+		L681_AF_MARKER("move-ok curr=%lu target=%lu\n",
+			g_u4CurrPosition, g_u4TargetPosition);
 	} else {
 		LOG_INF("set I2C failed when moving the motor\n");
+		L681_AF_MARKER("move-fail curr=%lu target=%lu reason=i2c-write\n",
+			g_u4CurrPosition, g_u4TargetPosition);
 
 		spin_lock(&g_AF_SpinLock);
 		g_i4MotorStatus = -1;
@@ -329,6 +345,7 @@ static int AF_Open(struct inode *a_pstInode, struct file *a_pstFile)
 	sunny_vcm_opened = 1;
 	if (g_s4AF_Opened) {
 		LOG_INF("The device is opened\n");
+		L681_AF_MARKER("open-fail reason=busy opened=%d\n", g_s4AF_Opened);
 		return -EBUSY;
 	}
 
@@ -352,6 +369,7 @@ static int AF_Open(struct inode *a_pstInode, struct file *a_pstFile)
 	spin_unlock(&g_AF_SpinLock);
 
 	LOG_INF("End\n");
+	L681_AF_MARKER("open-ok lsc_ret=%d\n", i4RetValue);
 
 	return 0;
 }
@@ -382,6 +400,7 @@ static int AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 		spin_unlock(&g_AF_SpinLock);
 	}
 	LOG_INF("End\n");
+	L681_AF_MARKER("release opened=%d\n", g_s4AF_Opened);
 
 	return 0;
 }
@@ -495,6 +514,7 @@ static int AF_i2c_probe(struct i2c_client *client, const struct i2c_device_id *i
 	int i4RetValue = 0;
 
 	LOG_INF("Start\n");
+	L681_AF_MARKER("i2c-probe-start addr=0x%x bus=%d\n", client->addr, LENS_I2C_BUSNUM);
 
 	/* Kirby: add new-style driver { */
 	g_pstAF_I2Cclient = client;
@@ -509,6 +529,7 @@ static int AF_i2c_probe(struct i2c_client *client, const struct i2c_device_id *i
 	if (i4RetValue) {
 
 		LOG_INF(" register char device failed!\n");
+		L681_AF_MARKER("i2c-probe-fail reason=char-driver ret=%d\n", i4RetValue);
 
 		return i4RetValue;
 	}
@@ -522,12 +543,15 @@ static int AF_i2c_probe(struct i2c_client *client, const struct i2c_device_id *i
 	INIT_WORK(&sunny_af_work, sunny_af_work_callback);
 
 	LOG_INF("Attached!!\n");
+	L681_AF_MARKER("i2c-probe-ready addr=0x%x workqueue=%d\n",
+		g_pstAF_I2Cclient->addr, sunny_af_work_queue != NULL);
 
 	return 0;
 }
 
 static int AF_probe(struct platform_device *pdev)
 {
+	L681_AF_MARKER("platform-probe\n");
 	return i2c_add_driver(&AF_i2c_driver);
 }
 
@@ -568,17 +592,22 @@ static struct platform_device g_stAF_device = {
 static int __init DW9714SY_i2C_init(void)
 {
 	i2c_register_board_info(LENS_I2C_BUSNUM, &kd_lens_dev, 1);
+	L681_AF_MARKER("init-start bus=%d addr=0x%x\n", LENS_I2C_BUSNUM,
+		I2C_REGISTER_ID);
 
 	if (platform_device_register(&g_stAF_device)) {
 		LOG_INF("failed to register AF driver\n");
+		L681_AF_MARKER("init-fail reason=platform-device\n");
 		return -ENODEV;
 	}
 
 	if (platform_driver_register(&g_stAF_Driver)) {
 		LOG_INF("Failed to register AF driver\n");
+		L681_AF_MARKER("init-fail reason=platform-driver\n");
 		return -ENODEV;
 	}
 
+	L681_AF_MARKER("init-ready\n");
 	return 0;
 }
 
