@@ -63,6 +63,8 @@
 #else
 #define logI(a, ...)
 #endif
+#define L681_FLASH_MARKER(fmt, args...) \
+	pr_info(PFX " l681_flashlight: marker=" fmt, ##args)
 #endif
 
 /*==============================*/
@@ -92,6 +94,7 @@ int globalInit(void)
 	int j;
 	int k;
 	logI("globalInit");
+	L681_FLASH_MARKER("global-init\n");
 	for (i = 0; i < e_Max_Sensor_Dev_Num; i++)
 		for (j = 0; j < e_Max_Strobe_Num_Per_Dev; j++) {
 			gLowBatDuty[i][j] = -1;
@@ -129,6 +132,7 @@ int getSensorDevIndex(int sensorDev)
 		return 2;
 	else {
 		logI("sensorDev=%d is wrong", sensorDev);
+		L681_FLASH_MARKER("reject reason=bad-sensor-dev sensorDev=%d\n", sensorDev);
 		return -1;
 	}
 }
@@ -137,6 +141,7 @@ int getStrobeIndex(int strobeId)
 {
 	if (strobeId < 1 || strobeId > 2) {
 		logI("strobeId=%d is wrong", strobeId);
+		L681_FLASH_MARKER("reject reason=bad-strobe-id strobeId=%d\n", strobeId);
 		return -1;
 	}
 	return strobeId - 1;
@@ -146,6 +151,7 @@ int getPartIndex(int partId)
 {
 	if (partId < 1 || partId > 2) {
 		logI("partId=%d is wrong", partId);
+		L681_FLASH_MARKER("reject reason=bad-part-id partId=%d\n", partId);
 		return -1;
 	}
 	return partId - 1;
@@ -211,14 +217,22 @@ static int setFlashDrv(int sensorDev, int strobeId)
 	FLASHLIGHT_FUNCTION_STRUCT **ppF = 0;
 	sensorDevIndex = getSensorDevIndex(sensorDev);
 	strobeIndex = getStrobeIndex(strobeId);
-	if (sensorDevIndex < 0 || strobeIndex < 0)
+	if (sensorDevIndex < 0 || strobeIndex < 0) {
+		L681_FLASH_MARKER("set-driver-fail sensorDev=%d strobeId=%d reason=index\n",
+			sensorDev, strobeId);
 		return -1;
+	}
 	partId = g_strobePartId[sensorDevIndex][strobeIndex];
 	partIndex = getPartIndex(partId);
-	if (partIndex < 0)
+	if (partIndex < 0) {
+		L681_FLASH_MARKER("set-driver-fail sensorDev=%d strobeId=%d partId=%d reason=part-index\n",
+			sensorDev, strobeId, partId);
 		return -1;
+	}
 
 	logI("setFlashDrv sensorDev=%d, strobeId=%d, partId=%d ~", sensorDev, strobeId, partId);
+	L681_FLASH_MARKER("set-driver sensorDev=%d sensor_index=%d strobeId=%d strobe_index=%d partId=%d part_index=%d\n",
+		sensorDev, sensorDevIndex, strobeId, strobeIndex, partId, partIndex);
 
 	ppF = &g_pFlashInitFunc[sensorDevIndex][strobeIndex][partIndex];
 	if (sensorDev == e_CAMERA_MAIN_SENSOR) {
@@ -256,8 +270,12 @@ static int setFlashDrv(int sensorDev, int strobeId)
 	if ((*ppF) != 0) {
 		(*ppF)->flashlight_open(0);
 		logI("setFlashDrv ok %d", __LINE__);
+		L681_FLASH_MARKER("set-driver-ok sensorDev=%d strobeId=%d partId=%d\n",
+			sensorDev, strobeId, partId);
 	} else {
 		logI("set function pointer not found!!");
+		L681_FLASH_MARKER("set-driver-fail sensorDev=%d strobeId=%d partId=%d reason=null-func\n",
+			sensorDev, strobeId, partId);
 		return -1;
 	}
 	return 0;
@@ -397,16 +415,24 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
 	kdStrobeDrvArg kdArg;
 	unsigned long copyRet;
 	copyRet = copy_from_user(&kdArg, (void *)arg, sizeof(kdStrobeDrvArg));
+	if (copyRet)
+		L681_FLASH_MARKER("ioctl-copy-warning cmd=0x%x missing=%lu\n", cmd, copyRet);
 	/*logI("flashlight_ioctl cmd=0x%x(nr=%d), senorDev=0x%x ledId=0x%x arg=0x%lx", cmd,
 	     _IOC_NR(cmd), kdArg.sensorDev, kdArg.strobeId, (unsigned long)kdArg.arg);*/
 	sensorDevIndex = getSensorDevIndex(kdArg.sensorDev);
 	strobeIndex = getStrobeIndex(kdArg.strobeId);
-	if (sensorDevIndex < 0 || strobeIndex < 0)
+	if (sensorDevIndex < 0 || strobeIndex < 0) {
+		L681_FLASH_MARKER("ioctl-reject cmd=0x%x sensorDev=%d strobeId=%d reason=index\n",
+			cmd, kdArg.sensorDev, kdArg.strobeId);
 		return -1;
+	}
 	partId = g_strobePartId[sensorDevIndex][strobeIndex];
 	partIndex = getPartIndex(partId);
-	if (partIndex < 0)
+	if (partIndex < 0) {
+		L681_FLASH_MARKER("ioctl-reject cmd=0x%x sensorDev=%d strobeId=%d partId=%d reason=part-index\n",
+			cmd, kdArg.sensorDev, kdArg.strobeId, partId);
 		return -1;
+	}
 
 
 
@@ -441,6 +467,8 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
 		gLowBatDuty[sensorDevIndex][strobeIndex] = -1;
 		break;
 	case FLASHLIGHTIOC_X_SET_DRIVER:
+		L681_FLASH_MARKER("ioctl-set-driver sensorDev=%d strobeId=%d partId=%d\n",
+			kdArg.sensorDev, kdArg.strobeId, partId);
 		i4RetValue = setFlashDrv(kdArg.sensorDev, kdArg.strobeId);
 		break;
 	case FLASH_IOC_GET_PART_ID:
@@ -452,6 +480,8 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
 			partId = strobe_getPartId(kdArg.sensorDev, kdArg.strobeId);
 			g_strobePartId[sensorDevIndex][strobeIndex] = partId;
 			kdArg.arg = partId;
+			L681_FLASH_MARKER("part-id sensorDev=%d strobeId=%d partId=%d\n",
+				kdArg.sensorDev, kdArg.strobeId, partId);
 			if (copy_to_user
 			    ((void __user *)arg, (void *)&kdArg, sizeof(kdStrobeDrvArg))) {
 				logI("[FLASH_IOC_GET_PART_ID] ioctl copy to user failed ~");
@@ -466,10 +496,14 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
 			pF = g_pFlashInitFunc[sensorDevIndex][strobeIndex][partIndex];
 			if (pF != 0) {
 				kicker_pbm_by_flash(kdArg.arg);
+				L681_FLASH_MARKER("set-onoff sensorDev=%d strobeId=%d partId=%d value=%d\n",
+					kdArg.sensorDev, kdArg.strobeId, partId, kdArg.arg);
 				i4RetValue = pF->flashlight_ioctl(cmd, kdArg.arg);
 
 			} else {
 				logI("[FLASH_IOC_SET_ONOFF] function pointer is wrong -");
+				L681_FLASH_MARKER("set-onoff-fail sensorDev=%d strobeId=%d partId=%d reason=null-func\n",
+					kdArg.sensorDev, kdArg.strobeId, partId);
 			}
 		}
 		break;
@@ -478,11 +512,15 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
 			FLASHLIGHT_FUNCTION_STRUCT *pF;
 			pF = g_pFlashInitFunc[sensorDevIndex][strobeIndex][partIndex];
 			if (pF != 0) {
+				L681_FLASH_MARKER("uninit sensorDev=%d strobeId=%d partId=%d\n",
+					kdArg.sensorDev, kdArg.strobeId, partId);
 				i4RetValue = pF->flashlight_release((void *)0);
 				pF = 0;
 
 			} else {
 				logI("[FLASH_IOC_UNINIT] function pointer is wrong ~");
+				L681_FLASH_MARKER("uninit-fail sensorDev=%d strobeId=%d partId=%d reason=null-func\n",
+					kdArg.sensorDev, kdArg.strobeId, partId);
 			}
 		}
 	default:
@@ -765,6 +803,7 @@ static int flashlight_probe(struct platform_device *dev)
 	int ret = 0, err = 0;
 
 	logI("[flashlight_probe] start ~");
+	L681_FLASH_MARKER("probe-start\n");
 
 #ifdef ALLOC_DEVNO
 	ret = alloc_chrdev_region(&flashlight_devno, 0, 1, FLASHLIGHT_DEVNAME);
@@ -788,6 +827,7 @@ static int flashlight_probe(struct platform_device *dev)
 	if (ret != 0) {
 		logI("[flashlight_probe] Unable to register chardev on major=%d (%d) ~",
 		     FLASHLIGHT_MAJOR, ret);
+		L681_FLASH_MARKER("probe-fail reason=register-chrdev ret=%d\n", ret);
 		return ret;
 	}
 	flashlight_devno = MKDEV(FLASHLIGHT_MAJOR, 0);
@@ -798,6 +838,8 @@ static int flashlight_probe(struct platform_device *dev)
 	if (IS_ERR(flashlight_class)) {
 		logI("[flashlight_probe] Unable to create class, err = %d ~",
 		     (int)PTR_ERR(flashlight_class));
+		L681_FLASH_MARKER("probe-fail reason=class-create err=%d\n",
+			(int)PTR_ERR(flashlight_class));
 		goto flashlight_probe_error;
 	}
 
@@ -805,6 +847,7 @@ static int flashlight_probe(struct platform_device *dev)
 	    device_create(flashlight_class, NULL, flashlight_devno, NULL, FLASHLIGHT_DEVNAME);
 	if (NULL == flashlight_device) {
 		logI("[flashlight_probe] device_create fail ~");
+		L681_FLASH_MARKER("probe-fail reason=device-create\n");
 		goto flashlight_probe_error;
 	}
 
@@ -813,8 +856,10 @@ static int flashlight_probe(struct platform_device *dev)
 	if (ret != 0) {
 		logI("[flashlight_probe] Unable to register flashlight_attribute_group in sysfs");
 		sysfs_remove_group(&flashlight_device->kobj, &flashlight_attribute_group);
+		L681_FLASH_MARKER("probe-sysfs-fail ret=%d\n", ret);
 	} else {
 		logI("[flashlight_probe] success to register flashlight_attribute_group in sysfs");
+		L681_FLASH_MARKER("probe-sysfs-ready\n");
 	}
 
 	/* initialize members */
@@ -824,6 +869,8 @@ static int flashlight_probe(struct platform_device *dev)
 	sema_init(&flashlight_private.sem, 1);
 
 	logI("[flashlight_probe] Done ~");
+	L681_FLASH_MARKER("probe-ready devno=%u:%u\n", MAJOR(flashlight_devno),
+		MINOR(flashlight_devno));
 	return 0;
 
 flashlight_probe_error:
@@ -888,16 +935,19 @@ static int __init flashlight_init(void)
 {
 	int ret = 0;
 	logI("[flashlight_probe] start ~");
+	L681_FLASH_MARKER("init-start\n");
 
 	ret = platform_device_register(&flashlight_platform_device);
 	if (ret) {
 		logI("[flashlight_probe] platform_device_register fail ~");
+		L681_FLASH_MARKER("init-fail reason=platform-device ret=%d\n", ret);
 		return ret;
 	}
 
 	ret = platform_driver_register(&flashlight_platform_driver);
 	if (ret) {
 		logI("[flashlight_probe] platform_driver_register fail ~");
+		L681_FLASH_MARKER("init-fail reason=platform-driver ret=%d\n", ret);
 		return ret;
 	}
 
@@ -908,6 +958,7 @@ static int __init flashlight_init(void)
 
 
 	logI("[flashlight_probe] done! ~");
+	L681_FLASH_MARKER("init-ready\n");
 	return ret;
 }
 

@@ -26,18 +26,22 @@
 
 int strobe_getPartId(int sensorDev, int strobeId)
 {
+	int partId;
+
 	/* return 1 or 2 (backup flash part). Other numbers are invalid. */
 	if (sensorDev == e_CAMERA_MAIN_SENSOR && strobeId == 1) {
-		return 1;
+		partId = 1;
 	} else if (sensorDev == e_CAMERA_MAIN_SENSOR && strobeId == 2) {
-		return 1;
+		partId = 1;
 	} else if (sensorDev == e_CAMERA_SUB_SENSOR && strobeId == 1) {
-		return 1;
+		partId = 1;
 	} else if (sensorDev == e_CAMERA_SUB_SENSOR && strobeId == 2) {
-		return 1;
+		partId = 1;
 	} else {		/* e_CAMERA_MAIN_2_SENSOR */
 
-		return 200;
+		partId = 200;
 	}
-	return 100;
+	pr_info("l681_flashlight: marker=part-id-map sensorDev=%d strobeId=%d partId=%d\n",
+		sensorDev, strobeId, partId);
+	return partId;
 }
