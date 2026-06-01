@@ -243,7 +243,21 @@ int primary_display_cmdq_set_reg(unsigned int addr, unsigned int val);
 int primary_display_vsync_switch(int method);
 int primary_display_setlcm_cmd(unsigned int *lcm_cmd, unsigned int *lcm_count,
 			       unsigned int *lcm_value);
+struct l681_refresh_rate_mode {
+	unsigned int fps;
+	unsigned int pll;
+	unsigned int vsa;
+	unsigned int vbp;
+	unsigned int vfp;
+	unsigned int hsa;
+	unsigned int hbp;
+	unsigned int hfp;
+	unsigned int bpp;
+};
+
 int primary_display_mipi_clk_change(unsigned int clk_value);
+int primary_display_l681_refresh_rate_change(const struct l681_refresh_rate_mode *mode,
+					     int blocking);
 
 void _cmdq_insert_wait_frame_done_token_mira(void *handle);
 int primary_display_get_max_layer(void);

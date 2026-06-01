@@ -83,6 +83,7 @@ static unsigned int frm_update_cnt;
 static unsigned int gPresentFenceIndex;
 static unsigned int g_keep;
 static unsigned int g_skip;
+extern unsigned int lcd_fps;
 
 #if 0
 /* global variable for idle manager */
@@ -1282,16 +1283,20 @@ static void _cmdq_flush_config_handle(int blocking, CmdqAsyncFlushCB callback, u
 
 }
 
-static void _cmdq_flush_config_handle_mira(void *handle, int blocking)
+static int _cmdq_flush_config_handle_mira(void *handle, int blocking)
 {
+	int ret;
+
 	dprec_logger_start(DPREC_LOGGER_PRIMARY_CMDQ_FLUSH, 0, 0);
 	if (blocking)
-		cmdqRecFlush(handle);
+		ret = cmdqRecFlush(handle);
 	else
-		cmdqRecFlushAsync(handle);
+		ret = cmdqRecFlushAsync(handle);
 
 	dprec_event_op(DPREC_EVENT_CMDQ_FLUSH);
 	dprec_logger_done(DPREC_LOGGER_PRIMARY_CMDQ_FLUSH, 0, 0);
+
+	return ret;
 }
 
 void _cmdq_insert_wait_primary_path_frame_done(void *handle)
@@ -5203,6 +5208,7 @@ int primary_display_setlcm_cmd(unsigned int *lcm_cmd, unsigned int *lcm_count,
 int primary_display_mipi_clk_change(unsigned int clk_value)
 {
 	cmdqRecHandle cmdq_handle = NULL;
+	int ret;
 
 	if (pgc->state == DISP_SLEEPED) {
 		DISPCHECK("Sleep State clk change invald\n");
@@ -5213,10 +5219,16 @@ int primary_display_mipi_clk_change(unsigned int clk_value)
 
 	if (!primary_display_is_video_mode()) {
 		DISPCHECK("clk change CMD Mode return\n");
+		_primary_path_unlock(__func__);
 		return 0;
 	}
 
-	cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &cmdq_handle);
+	ret = cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &cmdq_handle);
+	if (ret) {
+		DISPCHECK("l681_refresh_rate: cmdq create failed ret=%d\n", ret);
+		_primary_path_unlock(__func__);
+		return ret;
+	}
 	cmdqRecReset(cmdq_handle);
 
 	_cmdq_insert_wait_frame_done_token_mira(cmdq_handle);
@@ -5237,13 +5249,142 @@ int primary_display_mipi_clk_change(unsigned int clk_value)
 
 	dpmgr_path_trigger(pgc->dpmgr_handle, cmdq_handle, CMDQ_ENABLE);
 	ddp_mutex_set_sof_wait(dpmgr_path_get_mutex(pgc->dpmgr_handle), pgc->cmdq_handle_config_esd, 0);
-	_cmdq_flush_config_handle_mira(cmdq_handle, 1);
+	ret = _cmdq_flush_config_handle_mira(cmdq_handle, 1);
 
 	cmdqRecDestroy(cmdq_handle);
 	cmdq_handle = NULL;
 
+	if (ret) {
+		DISPCHECK("l681_refresh_rate: cmdq flush failed ret=%d\n", ret);
+		_primary_path_unlock(__func__);
+		return ret;
+	}
+
 	DISPCHECK("primary_display_mipi_clk_change return\n");
 
+	_primary_path_unlock(__func__);
+
+	return 0;
+}
+
+static int primary_display_l681_mipi_timing_change(const struct l681_refresh_rate_mode *mode,
+						   int blocking)
+{
+	cmdqRecHandle cmdq_handle = NULL;
+	LCM_DSI_PARAMS *dsi_params;
+	LCM_DSI_PARAMS old_dsi_params;
+	unsigned int clk_value;
+	int ret;
+
+	if (!mode)
+		return -EINVAL;
+
+	if (pgc->state == DISP_SLEEPED) {
+		DISPCHECK("Sleep State l681 timing change invald\n");
+		return -EINVAL;
+	}
+
+	_primary_path_lock(__func__);
+
+	if (!primary_display_is_video_mode()) {
+		DISPCHECK("l681_refresh_rate: timing change CMD Mode return\n");
+		_primary_path_unlock(__func__);
+		return 0;
+	}
+
+	ret = cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &cmdq_handle);
+	if (ret) {
+		DISPCHECK("l681_refresh_rate: timing cmdq create failed ret=%d\n", ret);
+		_primary_path_unlock(__func__);
+		return ret;
+	}
+	cmdqRecReset(cmdq_handle);
+
+	dsi_params = &pgc->plcm->params->dsi;
+	old_dsi_params = *dsi_params;
+	clk_value = mode->pll;
+
+	_cmdq_insert_wait_frame_done_token_mira(cmdq_handle);
+	dsi_params->PLL_CLOCK = mode->pll;
+	dsi_params->vertical_sync_active = mode->vsa;
+	dsi_params->vertical_backporch = mode->vbp;
+	dsi_params->vertical_frontporch = mode->vfp;
+	dsi_params->horizontal_sync_active = mode->hsa;
+	dsi_params->horizontal_backporch = mode->hbp;
+	dsi_params->horizontal_frontporch = mode->hfp;
+	if (mode->bpp == 2) {
+		dsi_params->data_format.format = LCM_DSI_FORMAT_RGB565;
+		dsi_params->PS = LCM_PACKED_PS_16BIT_RGB565;
+	} else {
+		dsi_params->data_format.format = LCM_DSI_FORMAT_RGB888;
+		dsi_params->PS = LCM_PACKED_PS_24BIT_RGB888;
+	}
+
+	dpmgr_path_build_cmdq(pgc->dpmgr_handle,
+			cmdq_handle, CMDQ_STOP_VDO_MODE, 0);
+
+	ret = dpmgr_path_ioctl(primary_get_dpmgr_handle(), cmdq_handle,
+			DDP_DSI_TIMING_CHANGE, dsi_params);
+	if (ret)
+		DISPCHECK("l681_refresh_rate: timing ioctl failed ret=%d\n", ret);
+
+	ret += dpmgr_path_ioctl(primary_get_dpmgr_handle(), cmdq_handle,
+			DDP_PHY_CLK_CHANGE, &clk_value);
+	if (ret)
+		DISPCHECK("l681_refresh_rate: phy/timing ioctl failed ret=%d\n", ret);
+
+	dpmgr_path_build_cmdq(pgc->dpmgr_handle,
+			cmdq_handle, CMDQ_START_VDO_MODE, 0);
+
+	cmdqRecClearEventToken(cmdq_handle, CMDQ_EVENT_MUTEX0_STREAM_EOF);
+	cmdqRecClearEventToken(cmdq_handle, CMDQ_EVENT_DISP_RDMA0_EOF);
+
+	dpmgr_path_trigger(pgc->dpmgr_handle, cmdq_handle, CMDQ_ENABLE);
+	ddp_mutex_set_sof_wait(dpmgr_path_get_mutex(pgc->dpmgr_handle), pgc->cmdq_handle_config_esd, 0);
+	if (!ret)
+		ret = _cmdq_flush_config_handle_mira(cmdq_handle, blocking);
+
+	cmdqRecDestroy(cmdq_handle);
+	cmdq_handle = NULL;
+
+	if (ret) {
+		*dsi_params = old_dsi_params;
+		DISPCHECK("l681_refresh_rate: timing cmdq flush failed ret=%d\n", ret);
+		_primary_path_unlock(__func__);
+		return ret;
+	}
+
+	DISPCHECK("l681_refresh_rate: timing-applied fps=%u pll=%u bpp=%u ps=%u format=%u v=%u/%u/%u h=%u/%u/%u\n",
+		  mode->fps, mode->pll, mode->bpp, dsi_params->PS,
+		  dsi_params->data_format.format, mode->vsa, mode->vbp, mode->vfp,
+		  mode->hsa, mode->hbp, mode->hfp);
+
+	_primary_path_unlock(__func__);
+
+	return 0;
+}
+
+int primary_display_l681_refresh_rate_change(const struct l681_refresh_rate_mode *mode,
+					     int blocking)
+{
+	unsigned int old_lcm_fps;
+	unsigned int new_lcm_fps;
+	int ret;
+
+	if (!mode || !mode->fps || !mode->pll)
+		return -EINVAL;
+
+	ret = primary_display_l681_mipi_timing_change(mode, blocking);
+	if (ret)
+		return ret;
+
+	new_lcm_fps = mode->fps * 100;
+	_primary_path_lock(__func__);
+	old_lcm_fps = pgc->lcm_fps;
+	pgc->lcm_fps = new_lcm_fps;
+	lcd_fps = new_lcm_fps;
+	DISPCHECK("l681_refresh_rate: display-fps old_lcm_fps=%u new_lcm_fps=%u clk=%u blocking=%u\n",
+		  old_lcm_fps, new_lcm_fps, mode->pll, blocking);
 	_primary_path_unlock(__func__);
 
 	return 0;
@@ -6285,4 +6426,3 @@ int display_exit_tui(void)
 	return 0;
 
 }
-
