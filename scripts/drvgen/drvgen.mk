@@ -184,7 +184,12 @@ $(DRVGEN_OUT)/inc/cust_eint_ext.h: $(DRVGEN_TOOL) $(DWS_FILE)
 
 $(DRVGEN_OUT)/cust_eint.dtsi: $(DRVGEN_TOOL) $(DWS_FILE)
 	@mkdir -p $(dir $@)
-	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT) $(DRVGEN_OUT_PATH) eint_dtsi
+	@if [ -f $(PWD)/$(DRVGEN_PATH)/cust_eint_l681.dtsi ]; then \
+		echo "  l681 OVERRIDE  $@ <- cust_eint_l681.dtsi (stock-derived)"; \
+		cp -f $(PWD)/$(DRVGEN_PATH)/cust_eint_l681.dtsi $@; \
+	else \
+		$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT) $(DRVGEN_OUT_PATH) eint_dtsi; \
+	fi
 
 $(DRVGEN_OUT)/inc/pmic_drv.c: $(DRVGEN_TOOL) $(DWS_FILE)
 	@mkdir -p $(dir $@)
