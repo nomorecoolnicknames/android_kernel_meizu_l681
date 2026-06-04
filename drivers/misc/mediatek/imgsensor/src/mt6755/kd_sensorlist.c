@@ -112,6 +112,13 @@ struct device *sensor_device = NULL;
 #define PK_DBG_NONE(fmt, arg...)    do {} while (0)
 #define PK_DBG_FUNC(fmt, arg...)    pr_debug(fmt, ##arg)
 #define PK_INF(fmt, args...)     pr_debug(PFX "[%s] " fmt, __FUNCTION__, ##args)
+#define L681_CAM_MARKER(fmt, args...) \
+	pr_info(PFX " l681_camera: marker=" fmt, ##args)
+#if defined(CONFIG_MTK_LEGACY)
+#define L681_CAM_LEGACY_MODE 1
+#else
+#define L681_CAM_LEGACY_MODE 0
+#endif
 
 #undef DEBUG_CAMERA_HW_K
 /* #define DEBUG_CAMERA_HW_K */
@@ -734,10 +741,14 @@ MINT32 i = 0;
     for (i = (KDIMGSENSOR_MAX_INVOKE_DRIVERS-1); i >= KDIMGSENSOR_INVOKE_DRIVER_0; i--) {
     if (g_bEnableDriver[i] && g_pInvokeSensorFunc[i]) {
         if (0 != (g_CurrentSensorIdx & g_invokeSocketIdx[i])) {
+        L681_CAM_MARKER("multi-open-power-on slot=%d socket=%d name=%s current_mask=0x%x\n",
+            i, g_invokeSocketIdx[i], g_invokeSensorNameStr[i], g_CurrentSensorIdx);
         /* turn on power */
         ret = kdCISModulePowerOn((CAMERA_DUAL_CAMERA_SENSOR_ENUM)g_invokeSocketIdx[i], (char *)g_invokeSensorNameStr[i], true, CAMERA_HW_DRVNAME1);
         if (ERROR_NONE != ret) {
         PK_ERR("[%s]", __func__);
+        L681_CAM_MARKER("multi-open-power-fail slot=%d socket=%d name=%s ret=%u\n",
+            i, g_invokeSocketIdx[i], g_invokeSensorNameStr[i], ret);
         return ret;
         }
         /* wait for power stable */
@@ -776,12 +787,18 @@ MINT32 i = 0;
         /* set i2c slave ID */
         /* KD_SET_I2C_SLAVE_ID(i,g_invokeSocketIdx[i],IMGSENSOR_SET_I2C_ID_STATE); */
         /*  */
+        L681_CAM_MARKER("multi-open-try slot=%d socket=%d name=%s i2c_bus=%d\n",
+            i, g_invokeSocketIdx[i], g_invokeSensorNameStr[i], gI2CBusNum);
         ret = g_pInvokeSensorFunc[i]->SensorOpen();
         if (ERROR_NONE != ret) {
         kdCISModulePowerOn((CAMERA_DUAL_CAMERA_SENSOR_ENUM)g_invokeSocketIdx[i], (char *)g_invokeSensorNameStr[i], false, CAMERA_HW_DRVNAME1);
         PK_ERR("SensorOpen");
+        L681_CAM_MARKER("multi-open-fail slot=%d socket=%d name=%s ret=%u\n",
+            i, g_invokeSocketIdx[i], g_invokeSensorNameStr[i], ret);
         return ret;
         }
+        L681_CAM_MARKER("multi-open-ok slot=%d socket=%d name=%s\n",
+            i, g_invokeSocketIdx[i], g_invokeSensorNameStr[i]);
         /* set i2c slave ID */
         /* SensorOpen() will reset i2c slave ID */
         /* KD_SET_I2C_SLAVE_ID(i,g_invokeSocketIdx[i],IMGSENSOR_SET_I2C_ID_FORCE); */
@@ -1098,6 +1115,8 @@ int kdSetDriver(unsigned int *pDrvIndex)
     if (0 != kdGetSensorInitFuncList(&pSensorList))
     {
     PK_ERR("ERROR:kdGetSensorInitFuncList()\n");
+    L681_CAM_MARKER("set-driver-fail reason=list-null raw0=0x%x raw1=0x%x\n",
+        pDrvIndex[KDIMGSENSOR_INVOKE_DRIVER_0], pDrvIndex[KDIMGSENSOR_INVOKE_DRIVER_1]);
     return -EIO;
     }
 
@@ -1139,16 +1158,22 @@ int kdSetDriver(unsigned int *pDrvIndex)
 #endif
     PK_XLOG_INFO("[kdSetDriver]g_invokeSocketIdx[%d] = %d\n", i, g_invokeSocketIdx[i]);
     PK_XLOG_INFO("[kdSetDriver]drvIdx[%d] = %d\n", i, drvIdx[i]);
+    L681_CAM_MARKER("set-driver slot=%u raw=0x%x socket=%d drv_idx=%u i2c_bus=%d\n",
+        i, pDrvIndex[i], g_invokeSocketIdx[i], drvIdx[i], gI2CBusNum);
     /*  */
     if (MAX_NUM_OF_SUPPORT_SENSOR > drvIdx[i]) {
         if (NULL == pSensorList[drvIdx[i]].SensorInit) {
         PK_ERR("ERROR:kdSetDriver()\n");
+        L681_CAM_MARKER("set-driver-fail slot=%u socket=%d drv_idx=%u reason=no-init\n",
+            i, g_invokeSocketIdx[i], drvIdx[i]);
         return -EIO;
         }
 
         pSensorList[drvIdx[i]].SensorInit(&g_pInvokeSensorFunc[i]);
         if (NULL == g_pInvokeSensorFunc[i]) {
         PK_ERR("ERROR:NULL g_pSensorFunc[%d]\n", i);
+        L681_CAM_MARKER("set-driver-fail slot=%u socket=%d drv_idx=%u reason=null-func name=%s\n",
+            i, g_invokeSocketIdx[i], drvIdx[i], pSensorList[drvIdx[i]].drvname);
         return -EIO;
         }
         /*  */
@@ -1160,6 +1185,12 @@ int kdSetDriver(unsigned int *pDrvIndex)
         /* return sensor ID */
         /* pDrvIndex[0] = (unsigned int)pSensorList[drvIdx].SensorId; */
         PK_XLOG_INFO("[kdSetDriver] :[%d][%d][%d][%s][%d]\n", i, g_bEnableDriver[i], g_invokeSocketIdx[i], g_invokeSensorNameStr[i], sizeof(pSensorList[drvIdx[i]].drvname));
+        L681_CAM_MARKER("set-driver-ready slot=%u socket=%d drv_idx=%u sensor_id=0x%x name=%s i2c_bus=%d\n",
+            i, g_invokeSocketIdx[i], drvIdx[i], pSensorList[drvIdx[i]].SensorId,
+            g_invokeSensorNameStr[i], gI2CBusNum);
+    } else {
+        L681_CAM_MARKER("set-driver-fail slot=%u socket=%d drv_idx=%u reason=out-of-range\n",
+            i, g_invokeSocketIdx[i], drvIdx[i]);
     }
     }
     return 0;
@@ -1366,15 +1397,24 @@ inline static int adopt_CAMERA_HW_Open(void)
     /* KD_IMGSENSOR_PROFILE("kdModulePowerOn"); */
     /*  */
      if (g_pSensorFunc) {
+        L681_CAM_MARKER("single-open-try current_mask=0x%x primary_name=%s\n",
+            g_CurrentSensorIdx, g_invokeSensorNameStr[KDIMGSENSOR_INVOKE_DRIVER_0]);
         err = g_pSensorFunc->SensorOpen();
         if (ERROR_NONE != err) {
             /*Multiopen fail would close power.*/
             //kdModulePowerOn((CAMERA_DUAL_CAMERA_SENSOR_ENUM *) g_invokeSocketIdx, g_invokeSensorNameStr, false, CAMERA_HW_DRVNAME1);
             PK_ERR("ERROR:SensorOpen(), turn off power\n");
+            L681_CAM_MARKER("single-open-fail err=%u current_mask=0x%x primary_name=%s\n",
+                err, g_CurrentSensorIdx, g_invokeSensorNameStr[KDIMGSENSOR_INVOKE_DRIVER_0]);
+        } else {
+            L681_CAM_MARKER("single-open-ok current_mask=0x%x primary_name=%s\n",
+                g_CurrentSensorIdx, g_invokeSensorNameStr[KDIMGSENSOR_INVOKE_DRIVER_0]);
         }
     }
     else {
         PK_ERR(" ERROR:NULL g_pSensorFunc\n");
+        L681_CAM_MARKER("single-open-fail reason=null-func current_mask=0x%x\n",
+            g_CurrentSensorIdx);
     }
 
     KD_IMGSENSOR_PROFILE("SensorOpen");
@@ -1404,6 +1444,11 @@ inline static int adopt_CAMERA_HW_CheckIsAlive(void)
 
     KD_IMGSENSOR_PROFILE_INIT();
     /* power on sensor */
+    L681_CAM_MARKER("check-id-power-on sockets=%d,%d names=%s,%s\n",
+        g_invokeSocketIdx[KDIMGSENSOR_INVOKE_DRIVER_0],
+        g_invokeSocketIdx[KDIMGSENSOR_INVOKE_DRIVER_1],
+        g_invokeSensorNameStr[KDIMGSENSOR_INVOKE_DRIVER_0],
+        g_invokeSensorNameStr[KDIMGSENSOR_INVOKE_DRIVER_1]);
     kdModulePowerOn((CAMERA_DUAL_CAMERA_SENSOR_ENUM *)g_invokeSocketIdx, g_invokeSensorNameStr, true, CAMERA_HW_DRVNAME1);
     /* wait for power stable */
     mDELAY(10);
@@ -1420,6 +1465,8 @@ inline static int adopt_CAMERA_HW_CheckIsAlive(void)
     for (i = KDIMGSENSOR_INVOKE_DRIVER_0; i < KDIMGSENSOR_MAX_INVOKE_DRIVERS; i++) {
         if (DUAL_CAMERA_NONE_SENSOR != g_invokeSocketIdx[i]) {
         err = g_pSensorFunc->SensorFeatureControl(g_invokeSocketIdx[i], SENSOR_FEATURE_CHECK_SENSOR_ID, (MUINT8 *)&sensorID, &retLen);
+        L681_CAM_MARKER("check-id slot=%u socket=%d name=%s sensor_id=0x%x err=%u ret_len=%u\n",
+            i, g_invokeSocketIdx[i], g_invokeSensorNameStr[i], sensorID, err, retLen);
         if (sensorID == 0) {    /* not implement this feature ID */
             PK_DBG(" Not implement!!, use old open function to check\n");
             err = ERROR_SENSOR_CONNECT_FAIL;
@@ -1437,12 +1484,15 @@ inline static int adopt_CAMERA_HW_CheckIsAlive(void)
         if (ERROR_NONE != err)
         {
             PK_DBG("ERROR:adopt_CAMERA_HW_CheckIsAlive(), No imgsensor alive\n");
+            L681_CAM_MARKER("check-id-fail slot=%u socket=%d name=%s sensor_id=0x%x err=%u\n",
+                i, g_invokeSocketIdx[i], g_invokeSensorNameStr[i], sensorID, err);
         }
         }
     }
     }
     else {
     PK_DBG("ERROR:NULL g_pSensorFunc\n");
+    L681_CAM_MARKER("check-id-fail reason=null-func\n");
     }
 
     /* reset sensor state after power off */
@@ -1450,6 +1500,7 @@ inline static int adopt_CAMERA_HW_CheckIsAlive(void)
     if (ERROR_NONE != err1) {
     PK_DBG("SensorClose\n");
     }
+    L681_CAM_MARKER("check-id-close ret=%u final_err=%u info=%s\n", err1, err, mtk_ccm_name);
     /*  */
     kdModulePowerOn((CAMERA_DUAL_CAMERA_SENSOR_ENUM *)g_invokeSocketIdx, g_invokeSensorNameStr, false, CAMERA_HW_DRVNAME1);
     /*  */
@@ -4369,6 +4420,9 @@ static int __init CAMERA_HW_i2C_init(void)
     }
 #endif
     PK_DBG("[camerahw_probe] start\n");
+    L681_CAM_MARKER("probe-start legacy=%d support_bus=%d,%d,%d\n",
+        L681_CAM_LEGACY_MODE,
+        SUPPORT_I2C_BUS_NUM1, SUPPORT_I2C_BUS_NUM2, SUPPORT_I2C_BUS_NUM3);
 
 #ifndef CONFIG_OF
 	int ret = 0;
@@ -4387,10 +4441,12 @@ static int __init CAMERA_HW_i2C_init(void)
 
     if (platform_driver_register(&g_stCAMERA_HW_Driver)) {
     PK_ERR("failed to register CAMERA_HW driver\n");
+    L681_CAM_MARKER("probe-fail reason=driver1-register\n");
     return -ENODEV;
     }
     if (platform_driver_register(&g_stCAMERA_HW_Driver2)) {
     PK_ERR("failed to register CAMERA_HW driver\n");
+    L681_CAM_MARKER("probe-fail reason=driver2-register\n");
     return -ENODEV;
     }
 /* FIX-ME: linux-3.10 procfs API changed */
@@ -4402,6 +4458,7 @@ static int __init CAMERA_HW_i2C_init(void)
     /* Camera information */
     memset(mtk_ccm_name,0,camera_info_size);
     proc_create(PROC_CAMERA_INFO, 0, NULL, &fcamera_proc_fops1);
+    L681_CAM_MARKER("probe-ready proc=%s\n", PROC_CAMERA_INFO);
 
 #else
     /* Register proc file for main sensor register debug */
@@ -4496,7 +4553,5 @@ module_exit(CAMERA_HW_i2C_exit);
 MODULE_DESCRIPTION("CAMERA_HW driver");
 MODULE_AUTHOR("Jackie Su <jackie.su@Mediatek.com>");
 MODULE_LICENSE("GPL");
-
-
 
 
