@@ -244,6 +244,7 @@ int primary_display_vsync_switch(int method);
 int primary_display_setlcm_cmd(unsigned int *lcm_cmd, unsigned int *lcm_count,
 			       unsigned int *lcm_value);
 int primary_display_mipi_clk_change(unsigned int clk_value);
+int primary_display_l681_refresh_rate_change(unsigned int fps, unsigned int clk_value);
 
 void _cmdq_insert_wait_frame_done_token_mira(void *handle);
 int primary_display_get_max_layer(void);

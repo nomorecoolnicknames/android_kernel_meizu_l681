@@ -83,6 +83,7 @@ static unsigned int frm_update_cnt;
 static unsigned int gPresentFenceIndex;
 static unsigned int g_keep;
 static unsigned int g_skip;
+extern unsigned int lcd_fps;
 
 #if 0
 /* global variable for idle manager */
@@ -5249,6 +5250,31 @@ int primary_display_mipi_clk_change(unsigned int clk_value)
 	return 0;
 }
 
+int primary_display_l681_refresh_rate_change(unsigned int fps, unsigned int clk_value)
+{
+	unsigned int old_lcm_fps;
+	unsigned int new_lcm_fps;
+	int ret;
+
+	if (!fps || !clk_value)
+		return -EINVAL;
+
+	ret = primary_display_mipi_clk_change(clk_value);
+	if (ret)
+		return ret;
+
+	new_lcm_fps = fps * 100;
+	_primary_path_lock(__func__);
+	old_lcm_fps = pgc->lcm_fps;
+	pgc->lcm_fps = new_lcm_fps;
+	lcd_fps = new_lcm_fps;
+	DISPCHECK("l681_refresh_rate: display-fps old_lcm_fps=%u new_lcm_fps=%u clk=%u\n",
+		  old_lcm_fps, new_lcm_fps, clk_value);
+	_primary_path_unlock(__func__);
+
+	return 0;
+}
+
 /***********************/
 /*****Legacy DISP API*****/
 /***********************/
@@ -6285,4 +6311,3 @@ int display_exit_tui(void)
 	return 0;
 
 }
-

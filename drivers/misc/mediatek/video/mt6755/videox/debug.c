@@ -5,10 +5,14 @@
 #include <linux/vmalloc.h>
 #include <linux/sched.h>
 #include <linux/debugfs.h>
+#include <linux/jiffies.h>
+#include <linux/mutex.h>
+#include <linux/proc_fs.h>
 #include <linux/wait.h>
 #include <linux/time.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
+#include <linux/workqueue.h>
 #include <mach/mt_typedefs.h>
 #include <mach/m4u.h>
 #include "disp_drv_log.h"
@@ -43,7 +47,96 @@
 #include "disp_recovery.h"
 
 static struct dentry *mtkfb_dbgfs;
+static struct proc_dir_entry *l681_refresh_rate_proc;
 static char debug_buffer[4096 + DPREC_ERROR_LOG_BUFFER_LENGTH];
+
+#define L681_REFRESH_RATE_PROC "l681_refresh_rate"
+#define L681_REFRESH_RATE_DEFAULT_FPS 54
+#define L681_REFRESH_RATE_ROLLBACK_MS 10000
+
+struct l681_refresh_rate_mode {
+	unsigned int fps;
+	unsigned int pll;
+};
+
+static const struct l681_refresh_rate_mode l681_refresh_rate_modes[] = {
+	{ 54, 450 },
+	{ 60, 497 },
+	{ 75, 621 },
+	{ 90, 746 },
+};
+
+static unsigned int l681_refresh_rate_current = L681_REFRESH_RATE_DEFAULT_FPS;
+static unsigned int l681_refresh_rate_previous = L681_REFRESH_RATE_DEFAULT_FPS;
+static unsigned int l681_refresh_rate_pending;
+static unsigned int l681_refresh_rate_seq;
+static DEFINE_MUTEX(l681_refresh_rate_lock);
+static struct delayed_work l681_refresh_rate_rollback_work;
+
+static unsigned int l681_refresh_rate_to_pll(unsigned int fps)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(l681_refresh_rate_modes); i++) {
+		if (l681_refresh_rate_modes[i].fps == fps)
+			return l681_refresh_rate_modes[i].pll;
+	}
+
+	return 0;
+}
+
+static int l681_refresh_rate_apply_locked(unsigned int fps, const char *reason)
+{
+	unsigned int pll = l681_refresh_rate_to_pll(fps);
+	int ret;
+
+	if (!pll) {
+		DISPMSG("l681_refresh_rate: marker=reject reason=%s fps=%u current=%u pending=%u seq=%u\n",
+			reason, fps, l681_refresh_rate_current,
+			l681_refresh_rate_pending, l681_refresh_rate_seq);
+		return -EINVAL;
+	}
+
+	DISPMSG("l681_refresh_rate: marker=apply reason=%s fps=%u pll=%u previous=%u current=%u pending=%u seq=%u\n",
+		reason, fps, pll, l681_refresh_rate_previous,
+		l681_refresh_rate_current, l681_refresh_rate_pending,
+		l681_refresh_rate_seq);
+	ret = primary_display_l681_refresh_rate_change(fps, pll);
+	if (ret) {
+		DISPMSG("l681_refresh_rate: marker=apply-fail reason=%s fps=%u pll=%u ret=%d seq=%u\n",
+			reason, fps, pll, ret, l681_refresh_rate_seq);
+		return ret;
+	}
+	l681_refresh_rate_current = fps;
+
+	return 0;
+}
+
+static void l681_refresh_rate_rollback_worker(struct work_struct *work)
+{
+	unsigned int rollback_fps;
+	unsigned int rollback_seq;
+	int ret;
+
+	mutex_lock(&l681_refresh_rate_lock);
+	if (!l681_refresh_rate_pending) {
+		DISPMSG("l681_refresh_rate: marker=rollback-timeout-noop current=%u seq=%u\n",
+			l681_refresh_rate_current, l681_refresh_rate_seq);
+		mutex_unlock(&l681_refresh_rate_lock);
+		return;
+	}
+
+	rollback_fps = l681_refresh_rate_previous;
+	rollback_seq = l681_refresh_rate_seq;
+	l681_refresh_rate_pending = 0;
+	DISPMSG("l681_refresh_rate: marker=rollback-timeout seq=%u from=%u to=%u\n",
+		rollback_seq, l681_refresh_rate_current, rollback_fps);
+	ret = l681_refresh_rate_apply_locked(rollback_fps, "timeout");
+	if (ret)
+		DISPMSG("l681_refresh_rate: marker=rollback-timeout-fail seq=%u ret=%d\n",
+			rollback_seq, ret);
+	mutex_unlock(&l681_refresh_rate_lock);
+}
 
 static int draw_buffer(char *va, int w, int h,
 		       enum UNIFIED_COLOR_FMT ufmt, char r, char g, char b, char a)
@@ -625,11 +718,106 @@ static ssize_t kick_read(struct file *file, char __user *ubuf, size_t count, lof
 static const struct file_operations kickidle_fops = {
 	.read = kick_read,
 };
+
+static ssize_t l681_refresh_rate_read(struct file *file, char __user *ubuf,
+				      size_t count, loff_t *ppos)
+{
+	char buf[128];
+	int len;
+
+	len = snprintf(buf, sizeof(buf),
+		       "%u\nprevious=%u pending=%u seq=%u timeout_ms=%u supported=54,60,75,90\n",
+		       l681_refresh_rate_current, l681_refresh_rate_previous,
+		       l681_refresh_rate_pending, l681_refresh_rate_seq,
+		       L681_REFRESH_RATE_ROLLBACK_MS);
+
+	return simple_read_from_buffer(ubuf, count, ppos, buf, len);
+}
+
+static ssize_t l681_refresh_rate_write(struct file *file,
+				       const char __user *ubuf, size_t count,
+				       loff_t *ppos)
+{
+	char buf[16];
+	char *cmd;
+	size_t len;
+	unsigned int fps;
+	int ret;
+
+	len = min(count, sizeof(buf) - 1);
+	if (copy_from_user(buf, ubuf, len))
+		return -EFAULT;
+	buf[len] = '\0';
+	cmd = strim(buf);
+
+	if (!strcmp(cmd, "confirm")) {
+		mutex_lock(&l681_refresh_rate_lock);
+		DISPMSG("l681_refresh_rate: marker=confirm current=%u previous=%u pending=%u seq=%u\n",
+			l681_refresh_rate_current, l681_refresh_rate_previous,
+			l681_refresh_rate_pending, l681_refresh_rate_seq);
+		l681_refresh_rate_previous = l681_refresh_rate_current;
+		l681_refresh_rate_pending = 0;
+		mutex_unlock(&l681_refresh_rate_lock);
+		cancel_delayed_work_sync(&l681_refresh_rate_rollback_work);
+		return count;
+	}
+
+	if (!strcmp(cmd, "rollback")) {
+		cancel_delayed_work_sync(&l681_refresh_rate_rollback_work);
+		mutex_lock(&l681_refresh_rate_lock);
+		fps = l681_refresh_rate_previous;
+		l681_refresh_rate_pending = 0;
+		ret = l681_refresh_rate_apply_locked(fps, "manual-rollback");
+		mutex_unlock(&l681_refresh_rate_lock);
+		if (ret)
+			return ret;
+		return count;
+	}
+
+	ret = kstrtouint(cmd, 0, &fps);
+	if (ret) {
+		DISPMSG("l681_refresh_rate: marker=parse-fail input=%s ret=%d current=%u seq=%u\n",
+			cmd, ret, l681_refresh_rate_current,
+			l681_refresh_rate_seq);
+		return ret;
+	}
+
+	cancel_delayed_work_sync(&l681_refresh_rate_rollback_work);
+	mutex_lock(&l681_refresh_rate_lock);
+	l681_refresh_rate_previous = l681_refresh_rate_current;
+	l681_refresh_rate_pending = fps;
+	l681_refresh_rate_seq++;
+	ret = l681_refresh_rate_apply_locked(fps, "request");
+	if (ret)
+		l681_refresh_rate_pending = 0;
+	mutex_unlock(&l681_refresh_rate_lock);
+	if (ret)
+		return ret;
+	schedule_delayed_work(&l681_refresh_rate_rollback_work,
+			      msecs_to_jiffies(L681_REFRESH_RATE_ROLLBACK_MS));
+
+	return count;
+}
+
+static const struct file_operations l681_refresh_rate_fops = {
+	.read = l681_refresh_rate_read,
+	.write = l681_refresh_rate_write,
+};
+
 void DBG_Init(void)
 {
 	struct dentry *d_folder;
 	struct dentry *d_file;
 	mtkfb_dbgfs = debugfs_create_file("mtkfb", S_IFREG | S_IRUGO, NULL, (void *)0, &debug_fops);
+	INIT_DELAYED_WORK(&l681_refresh_rate_rollback_work,
+			  l681_refresh_rate_rollback_worker);
+	l681_refresh_rate_proc = proc_create(L681_REFRESH_RATE_PROC, S_IRUGO | S_IWUGO,
+					     NULL, &l681_refresh_rate_fops);
+	if (l681_refresh_rate_proc)
+		DISPMSG("l681_refresh_rate: marker=proc-ready current=%u timeout_ms=%u\n",
+			l681_refresh_rate_current, L681_REFRESH_RATE_ROLLBACK_MS);
+	else
+		DISPMSG("l681_refresh_rate: marker=proc-create-fail\n");
 	d_folder = debugfs_create_dir("displowpower", NULL);
 	if (d_folder)
 		d_file = debugfs_create_file("kickdump", S_IFREG | S_IRUGO, d_folder, NULL, &kickidle_fops);
@@ -639,5 +827,10 @@ void DBG_Init(void)
 
 void DBG_Deinit(void)
 {
+	cancel_delayed_work_sync(&l681_refresh_rate_rollback_work);
+	if (l681_refresh_rate_proc) {
+		remove_proc_entry(L681_REFRESH_RATE_PROC, NULL);
+		l681_refresh_rate_proc = NULL;
+	}
 	debugfs_remove(mtkfb_dbgfs);
 }
