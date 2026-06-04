@@ -1283,16 +1283,20 @@ static void _cmdq_flush_config_handle(int blocking, CmdqAsyncFlushCB callback, u
 
 }
 
-static void _cmdq_flush_config_handle_mira(void *handle, int blocking)
+static int _cmdq_flush_config_handle_mira(void *handle, int blocking)
 {
+	int ret;
+
 	dprec_logger_start(DPREC_LOGGER_PRIMARY_CMDQ_FLUSH, 0, 0);
 	if (blocking)
-		cmdqRecFlush(handle);
+		ret = cmdqRecFlush(handle);
 	else
-		cmdqRecFlushAsync(handle);
+		ret = cmdqRecFlushAsync(handle);
 
 	dprec_event_op(DPREC_EVENT_CMDQ_FLUSH);
 	dprec_logger_done(DPREC_LOGGER_PRIMARY_CMDQ_FLUSH, 0, 0);
+
+	return ret;
 }
 
 void _cmdq_insert_wait_primary_path_frame_done(void *handle)
@@ -5204,6 +5208,7 @@ int primary_display_setlcm_cmd(unsigned int *lcm_cmd, unsigned int *lcm_count,
 int primary_display_mipi_clk_change(unsigned int clk_value)
 {
 	cmdqRecHandle cmdq_handle = NULL;
+	int ret;
 
 	if (pgc->state == DISP_SLEEPED) {
 		DISPCHECK("Sleep State clk change invald\n");
@@ -5214,10 +5219,16 @@ int primary_display_mipi_clk_change(unsigned int clk_value)
 
 	if (!primary_display_is_video_mode()) {
 		DISPCHECK("clk change CMD Mode return\n");
+		_primary_path_unlock(__func__);
 		return 0;
 	}
 
-	cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &cmdq_handle);
+	ret = cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &cmdq_handle);
+	if (ret) {
+		DISPCHECK("l681_refresh_rate: cmdq create failed ret=%d\n", ret);
+		_primary_path_unlock(__func__);
+		return ret;
+	}
 	cmdqRecReset(cmdq_handle);
 
 	_cmdq_insert_wait_frame_done_token_mira(cmdq_handle);
@@ -5238,10 +5249,16 @@ int primary_display_mipi_clk_change(unsigned int clk_value)
 
 	dpmgr_path_trigger(pgc->dpmgr_handle, cmdq_handle, CMDQ_ENABLE);
 	ddp_mutex_set_sof_wait(dpmgr_path_get_mutex(pgc->dpmgr_handle), pgc->cmdq_handle_config_esd, 0);
-	_cmdq_flush_config_handle_mira(cmdq_handle, 1);
+	ret = _cmdq_flush_config_handle_mira(cmdq_handle, 1);
 
 	cmdqRecDestroy(cmdq_handle);
 	cmdq_handle = NULL;
+
+	if (ret) {
+		DISPCHECK("l681_refresh_rate: cmdq flush failed ret=%d\n", ret);
+		_primary_path_unlock(__func__);
+		return ret;
+	}
 
 	DISPCHECK("primary_display_mipi_clk_change return\n");
 
