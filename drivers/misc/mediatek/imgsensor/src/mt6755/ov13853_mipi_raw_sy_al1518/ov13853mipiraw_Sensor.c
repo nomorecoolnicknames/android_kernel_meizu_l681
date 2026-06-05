@@ -56,6 +56,9 @@ static int vendor_id_sy = 0x0;
 extern void sy_otp_cali(unsigned char writeid);
 extern bool sy_read_otp_pdaf_data( kal_uint16 addr, BYTE* data, kal_uint32 size);
 
+extern bool sy_byteread_cmos_sensor(unsigned char SLAVEID, unsigned short addr, unsigned char *data);
+extern int sy_selective_read_region(u32 addr, u8 *data, u16 i2c_id, u32 size);
+
 static imgsensor_info_struct imgsensor_info = {
     .sensor_id = OV13853_SENSOR_ID,        //record sensor id defined in Kd_imgsensor.h
 
@@ -229,38 +232,6 @@ static void write_cmos_sensor(kal_uint32 addr, kal_uint32 para)
 {
     char pu_send_cmd[3] = {(char)(addr >> 8), (char)(addr & 0xFF), (char)(para & 0xFF)};
     iWriteRegI2C(pu_send_cmd, 3, imgsensor.i2c_write_id);
-}
-
-static bool sy_byteread_cmos_sensor(unsigned char slave_id, unsigned short addr, unsigned char *data)
-{
-    char pu_send_cmd[2] = {(char)(addr >> 8), (char)(addr & 0xFF)};
-
-    if (iReadRegI2C(pu_send_cmd, 2, data, 1, slave_id) < 0) {
-        LOG_INF("fail sy otp read slave=0x%x addr=0x%x\n", slave_id, addr);
-        return false;
-    }
-
-    return true;
-}
-
-static int sy_selective_read_region(u32 addr, u8 *data, u16 i2c_id, u32 size)
-{
-    unsigned short cur_addr = (unsigned short)addr;
-    u8 *buf = data;
-    u32 remaining = size;
-    int ret = 0;
-
-    while (remaining > 0) {
-        if (!sy_byteread_cmos_sensor(i2c_id, cur_addr, buf))
-            break;
-
-        cur_addr++;
-        buf++;
-        remaining--;
-        ret++;
-    }
-
-    return ret;
 }
 
 static void set_dummy()
