@@ -59,7 +59,7 @@ static char debug_buffer[4096 + DPREC_ERROR_LOG_BUFFER_LENGTH];
 #define L681_REFRESH_RATE_MAX_CONFIRM_FPS 75
 #define L681_REFRESH_RATE_MAX_TEST_FPS 83
 #define L681_REFRESH_RATE_MAX_DATA_RATE 1250
-#define L681_REFRESH_RATE_DANGER_MAX_FPS 100
+#define L681_REFRESH_RATE_DANGER_MAX_FPS 119
 #define L681_REFRESH_RATE_DANGER_MAX_DATA_RATE 1500
 #define L681_REFRESH_RATE_DANGER_REBOOT_MS 5000
 #define L681_REFRESH_RATE_TEST_PREFIX "test:"
@@ -83,6 +83,10 @@ static const struct l681_refresh_rate_mode l681_refresh_rate_modes[] = {
 	{ 90, 567, 1, 1, 2, 4, 4, 4 },
 	{ 96, 605, 1, 1, 2, 4, 4, 4 },
 	{ 100, 630, 1, 1, 2, 4, 4, 4 },
+	{ 105, 662, 1, 1, 2, 4, 4, 4 },
+	{ 110, 693, 1, 1, 2, 4, 4, 4 },
+	{ 115, 725, 1, 1, 2, 4, 4, 4 },
+	{ 119, 750, 1, 1, 2, 4, 4, 4 },
 };
 
 static unsigned int l681_refresh_rate_current = L681_REFRESH_RATE_DEFAULT_FPS;
@@ -829,14 +833,14 @@ static const struct file_operations kickidle_fops = {
 static ssize_t l681_refresh_rate_read(struct file *file, char __user *ubuf,
 				      size_t count, loff_t *ppos)
 {
-	char buf[384];
+	char buf[512];
 	int len;
 	const struct l681_refresh_rate_mode *mode;
 
 	mode = l681_refresh_rate_find_mode(l681_refresh_rate_current);
 
 	len = snprintf(buf, sizeof(buf),
-		       "%u\neffective_millihz=%u previous=%u pending=%u seq=%u timeout_ms=%u supported=54,60,65,70,72,75 unsafe_test=78,80,82,83 danger_test=84,85,90,96,100 rejected=101+ phy_max=%u danger_phy_max=%u danger_reboot_ms=%u\n",
+		       "%u\neffective_millihz=%u previous=%u pending=%u seq=%u timeout_ms=%u supported=54,60,65,70,72,75 unsafe_test=78,80,82,83 danger_test=84,85,90,96,100,105,110,115,119 rejected=120+ phy_max=%u danger_phy_max=%u danger_reboot_ms=%u\n",
 		       l681_refresh_rate_current,
 		       l681_refresh_rate_effective_millihz(mode),
 		       l681_refresh_rate_previous, l681_refresh_rate_pending,
