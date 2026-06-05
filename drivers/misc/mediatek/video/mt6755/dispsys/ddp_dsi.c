@@ -33,6 +33,8 @@
 #include "ddp_clkmgr.h"
 #endif
 
+#define L681_REFRESH_RATE_MIPITX_SAFE_MAX_DATA_RATE 1654
+
 
 #define DSI_OUTREG32(cmdq, addr, val) DISP_REG_SET(cmdq, addr, val)
 #define DSI_BACKUPREG32(cmdq, hSlot, idx, addr) DISP_REG_BACKUP(cmdq, hSlot, idx, addr)
@@ -1140,7 +1142,7 @@ void DSI_PHY_clk_change(DISP_MODULE_ENUM module, cmdqRecHandle cmdq, LCM_DSI_PAR
 
 	for (i = DSI_MODULE_BEGIN(module); i <= DSI_MODULE_END(module); i++) {
 		if (0 != data_Rate) {
-			if (data_Rate > 1500) {
+			if (data_Rate > L681_REFRESH_RATE_MIPITX_SAFE_MAX_DATA_RATE) {
 				DISPCHECK("mipitx Data Rate exceed limitation(%d)\n", data_Rate);
 				ASSERT(0);
 			} else if (data_Rate >= 500) {
@@ -1413,7 +1415,7 @@ void DSI_PHY_clk_setting(DISP_MODULE_ENUM module, cmdqRecHandle cmdq, LCM_DSI_PA
 		mdelay(1);
 
 		if (0 != data_Rate) {
-			if (data_Rate > 1500) {
+			if (data_Rate > L681_REFRESH_RATE_MIPITX_SAFE_MAX_DATA_RATE) {
 				DISPCHECK("mipitx Data Rate exceed limitation(%d)\n", data_Rate);
 				ASSERT(0);
 			} else if (data_Rate >= 500) {
@@ -2755,7 +2757,7 @@ int ddp_dsi_set_lcm_utils(DISP_MODULE_ENUM module, LCM_DRIVER *lcm_drv)
 void DSI_ChangeClk(DISP_MODULE_ENUM module, UINT32 clk)
 {
 	int i = 0;
-	if (clk > 1500 || clk < 50)
+	if (clk > L681_REFRESH_RATE_MIPITX_SAFE_MAX_DATA_RATE || clk < 50)
 		return;
 
 	for (i = DSI_MODULE_BEGIN(module); i <= DSI_MODULE_END(module); i++) {
