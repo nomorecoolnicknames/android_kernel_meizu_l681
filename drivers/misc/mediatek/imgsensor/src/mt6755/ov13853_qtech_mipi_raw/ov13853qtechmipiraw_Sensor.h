@@ -2,7 +2,7 @@
  *
  * Filename:
  * ---------
- *     OV13853mipiraw_Sensor.h
+ *     OV13853qtechmipiraw_Sensor.h
  *
  * Project:
  * --------
@@ -13,8 +13,8 @@
  *     CMOS sensor header file
  *
  ****************************************************************************/
-#ifndef _OV13853MIPIRAW_SENSOR_H
-#define _OV13853MIPIRAW_SENSOR_H
+#ifndef _OV13853QTECHMIPIRAW_SENSOR_H
+#define _OV13853QTECHMIPIRAW_SENSOR_H
 
 
 typedef enum{

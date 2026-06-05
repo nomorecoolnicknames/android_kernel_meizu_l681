@@ -13,8 +13,8 @@
  *     CMOS sensor header file
  *
  ****************************************************************************/
-#ifndef _OV13853MIPIRAW_SENSOR_H
-#define _OV13853MIPIRAW_SENSOR_H
+#ifndef _OV13853SUNNY2MIPIRAW_SENSOR_H
+#define _OV13853SUNNY2MIPIRAW_SENSOR_H
 
 
 typedef enum{

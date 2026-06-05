@@ -35,10 +35,10 @@
 #include "kd_imgsensor_define.h"
 #include "kd_imgsensor_errcode.h"
 
-#include "ov13853mipiraw_Sensor.h"
+#include "ov13853_sunny2_mipiraw_Sensor.h"
 
 /****************************Modify Following Strings for Debug****************************/
-#define PFX "OV13853_Sunny_camera_sensor"
+#define PFX "OV13853_Sunny2_camera_sensor"
 #define LOG_1 LOG_INF("OV13853,MIPI 4LANE\n")
 #define LOG_2 LOG_INF("preview 2096*1552@30fps,640Mbps/lane; video 4192*3104@30fps,1.2Gbps/lane; capture 13M@30fps,1.2Gbps/lane\n")
 /****************************   Modify end    *******************************************/
@@ -183,7 +183,7 @@ static SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[5] =
 
 //wangjie, otp
 #define GT24C64A_DEVICE_ID 0xA0
-#define SUNNY_MODULE_ID 0x01
+#define SUNNY_MODULE_LENS_ID 0x11
 #define MODULE_ADDR 0x0001
 extern bool selective_read_byte(u32 addr, BYTE* data,u16 i2c_id);
 extern int selective_read_region(u32 addr, BYTE* data,u16 i2c_id,u32 size);
@@ -198,8 +198,8 @@ extern int selective_read_region(u32 addr, BYTE* data,u16 i2c_id,u32 size);
 extern unsigned lsc_start_addr;
 extern unsigned char lscdata[0x5e4];
 extern u32 lscsize;
-unsigned char pddata[1372];
-int first_read_pdflag=1;
+static unsigned char pddata[1372];
+static int first_read_pdflag=1;
 //end
 static bool read_otp_pdaf_data(kal_uint16 addr, BYTE* data, kal_uint32 size)
 {
@@ -1916,10 +1916,11 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 	 *sensor_id = return_sensor_id();
             if (*sensor_id == imgsensor_info.sensor_id) {
 		selective_read_byte(MODULE_ADDR,&module_id,GT24C64A_DEVICE_ID);
-		if(SUNNY_MODULE_ID == module_id) {
-	                strcpy(camera_b_info,"SUNNY_OV13853");//module info: SUNNY
+		if(SUNNY_MODULE_LENS_ID == module_id) {
+	                strcpy(camera_b_info,"SUNNY2_OV13853");//module info: SUNNY
 	                read_otp_pdaf_data(0x55,pddata,0x1372);//read pddate only first open machine,allenyao
 	                 selective_read_region((lsc_start_addr+1), lscdata, GT24C64A_DEVICE_ID, lscsize);//read lsc data when first open machine,allenyao
+	                 *sensor_id =OV13853SUNNY2_SENSOR_ID;
 	                LOG_INF("i2c write id: 0x%x, sensor id: 0x%x, module id: 0x%x\n", imgsensor.i2c_write_id,*sensor_id,module_id);
 	                return ERROR_NONE;
 		}
@@ -1930,7 +1931,7 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
         i++;
         retry = 2;
     }
-    if ((*sensor_id != imgsensor_info.sensor_id) || (SUNNY_MODULE_ID != module_id)) {
+    if ((*sensor_id != imgsensor_info.sensor_id) || (SUNNY_MODULE_LENS_ID != module_id)) {
         // if Sensor ID is not correct, Must set *sensor_id to 0xFFFFFFFF
         *sensor_id = 0xFFFFFFFF;
         return ERROR_SENSOR_CONNECT_FAIL;
@@ -2696,7 +2697,7 @@ static SENSOR_FUNCTION_STRUCT sensor_func = {
     close
 };
 
-UINT32 OV13853_MIPI_RAW_SensorInit(PSENSOR_FUNCTION_STRUCT *pfFunc)
+UINT32 OV13853_SUNNY2_MIPI_RAW_SensorInit(PSENSOR_FUNCTION_STRUCT *pfFunc)
 {
     /* To Do : Check Sensor status here */
     if (pfFunc!=NULL)

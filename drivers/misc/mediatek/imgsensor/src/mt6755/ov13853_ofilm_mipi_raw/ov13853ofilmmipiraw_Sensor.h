@@ -2,7 +2,7 @@
  *
  * Filename:
  * ---------
- *     OV13853mipiraw_Sensor.h
+ *     OV13853ofilmmipiraw_Sensor.h
  *
  * Project:
  * --------
@@ -13,8 +13,8 @@
  *     CMOS sensor header file
  *
  ****************************************************************************/
-#ifndef _OV13853MIPIRAW_SENSOR_H
-#define _OV13853MIPIRAW_SENSOR_H
+#ifndef _OV13853OFILMMIPIRAW_SENSOR_H
+#define _OV13853OFILMMIPIRAW_SENSOR_H
 
 
 typedef enum{
@@ -120,5 +120,6 @@ typedef enum{
 extern int iReadRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u8 * a_pRecvData, u16 a_sizeRecvData, u16 i2cId);
 extern int iWriteRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u16 i2cId);
 
+extern bool read_ofilm_otp_pdaf_data(kal_uint16 addr, BYTE* data, kal_uint32 size);
 
 #endif

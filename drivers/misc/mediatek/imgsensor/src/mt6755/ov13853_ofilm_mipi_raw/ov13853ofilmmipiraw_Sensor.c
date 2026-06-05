@@ -2,7 +2,7 @@
  *
  * Filename:
  * ---------
- *     OV13853mipi_Sensor.c
+ *     OV13853ofilmmipi_Sensor.c
  *
  * Project:
  * --------
@@ -35,10 +35,10 @@
 #include "kd_imgsensor_define.h"
 #include "kd_imgsensor_errcode.h"
 
-#include "ov13853mipiraw_Sensor.h"
+#include "ov13853ofilmmipiraw_Sensor.h"
 
 /****************************Modify Following Strings for Debug****************************/
-#define PFX "OV13853_Sunny_camera_sensor"
+#define PFX "OV13853_Ofilm_camera_sensor"
 #define LOG_1 LOG_INF("OV13853,MIPI 4LANE\n")
 #define LOG_2 LOG_INF("preview 2096*1552@30fps,640Mbps/lane; video 4192*3104@30fps,1.2Gbps/lane; capture 13M@30fps,1.2Gbps/lane\n")
 /****************************   Modify end    *******************************************/
@@ -183,71 +183,11 @@ static SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[5] =
 
 //wangjie, otp
 #define GT24C64A_DEVICE_ID 0xA0
-#define SUNNY_MODULE_ID 0x01
+#define OFILM_MODULE_ID 0x07
 #define MODULE_ADDR 0x0001
-extern bool selective_read_byte(u32 addr, BYTE* data,u16 i2c_id);
-extern int selective_read_region(u32 addr, BYTE* data,u16 i2c_id,u32 size);
+extern bool selective_read_byte_ofilm(u32 addr, BYTE* data,u16 i2c_id);
+extern int selective_read_region_ofilm(u32 addr, BYTE* data,u16 i2c_id,u32 size);
 #if 1
-//wangjie, pdaf
-#define PDAF_DATA_SIZE 1372	//496+806+70
-#define PDAF_ADDR 0x07A0	//first byte: flag
-#define PDAF_OFFSET 1	//pdaf data offset
-#define PDAF_FLAG 0x01	//valid flag
-#define PDAF_CRC_ADDR 0x0CFD //checksum addr
-//add by allenyao
-extern unsigned lsc_start_addr;
-extern unsigned char lscdata[0x5e4];
-extern u32 lscsize;
-unsigned char pddata[1372];
-int first_read_pdflag=1;
-//end
-static bool read_otp_pdaf_data(kal_uint16 addr, BYTE* data, kal_uint32 size)
-{
-	kal_uint8 pdaf_flag = 0, read_sum = 0, check_sum = 0;
-	kal_uint32 get_size = 0, sum = 0;
-	int i;
-
-	LOG_INF("read_otp_pdaf_data enter! addr: 0x%x, data: %p, size: %d\n",addr,data,size);
-	if(1==first_read_pdflag){
-		first_read_pdflag=0;
-		memset(pddata,0x0,sizeof(pddata));
-		selective_read_byte(PDAF_ADDR, &pdaf_flag, GT24C64A_DEVICE_ID);
-		if(PDAF_FLAG != pdaf_flag)
-		{
-			LOG_INF("read_otp_pdaf_data fail! pdaf flag: %d\n",pdaf_flag);
-			return false;
-		}
-
-		get_size = selective_read_region((PDAF_ADDR+PDAF_OFFSET), data, GT24C64A_DEVICE_ID, PDAF_DATA_SIZE);
-		if(PDAF_DATA_SIZE != get_size)
-		{
-			LOG_INF("read_otp_pdaf_data fail! read size: %d\n",get_size);
-			return false;
-		}
-		selective_read_byte(PDAF_CRC_ADDR, &read_sum, GT24C64A_DEVICE_ID);
-		for(i = 0; i < PDAF_DATA_SIZE; i++) {
-			sum += data[i];
-			pddata[i]=data[i];
-		}
-		check_sum = sum % 255 + 1;
-		if(read_sum != check_sum)
-		{
-			LOG_INF("read_otp_pdaf_data fail! read_sum: %d, check_sum: %d\n",read_sum,check_sum);
-			return false;
-		}
-		else
-		{
-			LOG_INF("read_otp_pdaf_data ok! data check ok.\n");
-		}
-	}else{
-		for(i = 0; i < PDAF_DATA_SIZE; i++) {
-			data[i]=pddata[i];
-		}
-	}
-	return true;
-}
-
-
 //pdaf ini setting, wangjie
 static SET_PD_BLOCK_INFO_T imgsensor_pd_info =
 {
@@ -1913,16 +1853,17 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
         imgsensor.i2c_write_id = imgsensor_info.i2c_addr_table[i];
         spin_unlock(&imgsensor_drv_lock);
         do {
-	 *sensor_id = return_sensor_id();
+            *sensor_id = return_sensor_id();
             if (*sensor_id == imgsensor_info.sensor_id) {
-		selective_read_byte(MODULE_ADDR,&module_id,GT24C64A_DEVICE_ID);
-		if(SUNNY_MODULE_ID == module_id) {
-	                strcpy(camera_b_info,"SUNNY_OV13853");//module info: SUNNY
-	                read_otp_pdaf_data(0x55,pddata,0x1372);//read pddate only first open machine,allenyao
-	                 selective_read_region((lsc_start_addr+1), lscdata, GT24C64A_DEVICE_ID, lscsize);//read lsc data when first open machine,allenyao
-	                LOG_INF("i2c write id: 0x%x, sensor id: 0x%x, module id: 0x%x\n", imgsensor.i2c_write_id,*sensor_id,module_id);
-	                return ERROR_NONE;
-		}
+                selective_read_byte_ofilm(MODULE_ADDR,&module_id,GT24C64A_DEVICE_ID);
+                module_id &= 0x1f;
+                printk("OFILM module_id is %d \n", module_id);
+                if(OFILM_MODULE_ID == module_id) {
+	                  *sensor_id = OV13853OFILM_SENSOR_ID;
+	                  strcpy(camera_b_info,"OFILM_OV13853");//module info: OFILM
+	                  LOG_INF("i2c write id: 0x%x, sensor id: 0x%x, module id: 0x%x\n", imgsensor.i2c_write_id,*sensor_id,module_id);
+	                  return ERROR_NONE;
+                }
             }
             LOG_INF("Read sensor id fail, write id: 0x%x, id: 0x%x, module id: 0x%x\n", imgsensor.i2c_write_id,*sensor_id,module_id);
             retry--;
@@ -1930,7 +1871,7 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
         i++;
         retry = 2;
     }
-    if ((*sensor_id != imgsensor_info.sensor_id) || (SUNNY_MODULE_ID != module_id)) {
+    if ((*sensor_id != imgsensor_info.sensor_id) || (OFILM_MODULE_ID != module_id)) {
         // if Sensor ID is not correct, Must set *sensor_id to 0xFFFFFFFF
         *sensor_id = 0xFFFFFFFF;
         return ERROR_SENSOR_CONNECT_FAIL;
@@ -2258,7 +2199,7 @@ static kal_uint32 get_info(MSDK_SCENARIO_ID_ENUM scenario_id,
     sensor_info->IHDR_Support = imgsensor_info.ihdr_support;
     sensor_info->IHDR_LE_FirstLine = imgsensor_info.ihdr_le_firstline;
     sensor_info->SensorModeNum = imgsensor_info.sensor_mode_num;
-    sensor_info->PDAF_Support = 1;//wangjie, pdaf enable
+    sensor_info->PDAF_Support = 1;//jerryxie,  enable pdaf
     sensor_info->SensorMIPILaneNumber = imgsensor_info.mipi_lane_num;
     sensor_info->SensorClockFreq = imgsensor_info.mclk;
     sensor_info->SensorClockDividCount = 3; /* not use */
@@ -2574,10 +2515,10 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
         case SENSOR_FEATURE_GET_DEFAULT_FRAME_RATE_BY_SCENARIO:
             get_default_framerate_by_scenario((MSDK_SCENARIO_ID_ENUM)*(feature_data), (MUINT32 *)(uintptr_t)(*(feature_data+1)));
             break;
-        case SENSOR_FEATURE_GET_PDAF_DATA://wangjie, pdaf
+        case SENSOR_FEATURE_GET_PDAF_DATA://jerryxie, read pdaf
           //add for ov13853 pdaf
-            read_otp_pdaf_data((kal_uint16 )(*feature_data),(char*)(uintptr_t)(*(feature_data+1)),(kal_uint32)(*(feature_data+2)));
-	 break;
+            read_ofilm_otp_pdaf_data((kal_uint16 )(*feature_data),(char*)(uintptr_t)(*(feature_data+1)),(kal_uint32)(*(feature_data+2)));
+            break;
         case SENSOR_FEATURE_SET_TEST_PATTERN:
             set_test_pattern_mode((BOOL)*feature_data);
             break;
@@ -2636,7 +2577,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
             }
              break;
         //add for ov13853 pdaf
-        case SENSOR_FEATURE_GET_PDAF_INFO://wangjie, pdaf
+        case SENSOR_FEATURE_GET_PDAF_INFO://jerryxie, which sensor mode support pdaf
             LOG_INF("SENSOR_FEATURE_GET_PDAF_INFO scenarioId:%d\n", *feature_data);
             PDAFinfo= (SET_PD_BLOCK_INFO_T *)(uintptr_t)(*(feature_data+1));
 
@@ -2652,7 +2593,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
                     break;
             }
             break;
-        case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY://wangjie, pdaf
+        case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY://jerryxie, which sensor mode support pdaf
             LOG_INF("SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY scenarioId:%d\n", *feature_data);
             //PDAF capacity enable or not, ov13853 only full size support PDAF
             switch (*feature_data) {
@@ -2696,10 +2637,10 @@ static SENSOR_FUNCTION_STRUCT sensor_func = {
     close
 };
 
-UINT32 OV13853_MIPI_RAW_SensorInit(PSENSOR_FUNCTION_STRUCT *pfFunc)
+UINT32 OV13853OFILM_MIPI_RAW_SensorInit(PSENSOR_FUNCTION_STRUCT *pfFunc)
 {
     /* To Do : Check Sensor status here */
     if (pfFunc!=NULL)
         *pfFunc=&sensor_func;
     return ERROR_NONE;
-}    /*    OV13853_MIPI_RAW_SensorInit    */
+}    /*    OV13853OFILM_MIPI_RAW_SensorInit    */

@@ -1,3 +1,2 @@
 include $(srctree)/drivers/misc/mediatek/Makefile.custom
-
-obj-y += ov13853mipiraw_Sensor.o
+obj-y += gt24c64a_qtech_eeprom.o

@@ -1,3 +1,2 @@
 include $(srctree)/drivers/misc/mediatek/Makefile.custom
-
-obj-y += ov13853mipiraw_Sensor.o
+obj-y += s5k5e8_eeprom.o

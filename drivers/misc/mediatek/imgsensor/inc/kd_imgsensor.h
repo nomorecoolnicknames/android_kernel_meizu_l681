@@ -118,9 +118,10 @@ NSFeature :  : RAWSensorInfo < _id >  :  : getFlickerPara \
 /*OV*/
 #define OV23850_SENSOR_ID                      	0x023850
 #define OV16825MIPI_SENSOR_ID                   0x016820
-#define OV13853_SENSOR_ID                       0xD853
-#define OV13853_SENSOR_ID_OFG_AL1518            (0xD853+1)
-#define OV13853_SENSOR_ID_SY_AL1518             (0xD853+2)
+#define OV13853_SENSOR_ID                       0xD853	//wangjie, back cam
+#define OV13853QTECH_SENSOR_ID                  0xD854	//wangjie, qtech back cam
+#define OV13853OFILM_SENSOR_ID                  0xD855  //jerryxie, ofilm back cam
+#define OV13853SUNNY2_SENSOR_ID                  0xD856  //allenyao, sunny2 back cam
 #define OV13850_SENSOR_ID                       0xD850
 #define OV12830_SENSOR_ID                       0xC830
 #define OV9760MIPI_SENSOR_ID                    0x9760
@@ -172,6 +173,7 @@ NSFeature :  : RAWSensorInfo < _id >  :  : getFlickerPara \
 #define S5K53BEB_SENSOR_ID                      0x87A8
 #define S5K5BAFX_SENSOR_ID                      0x05BA
 #define S5K5E2YA_SENSOR_ID                      0x5e20
+#define S5K5E8YX_SENSOR_ID                      0x5E80	//wangjie, front cam
 #define S5K4H5YX_2LANE_SENSOR_ID                0x485B
 #define S5K4H5YC_SENSOR_ID                      0x485B
 #define S5K83AFX_SENSOR_ID                      0x01C4
@@ -185,7 +187,6 @@ NSFeature :  : RAWSensorInfo < _id >  :  : getFlickerPara \
 #define HI551_SENSOR_ID                         0x0551
 #define HI545MIPI_SENSOR_ID                     0x0545
 #define HI544MIPI_SENSOR_ID                     0x0544
-#define HI553MIPI_SENSOR_ID                     0x0553
 #define HI542_SENSOR_ID                         0x00B1
 #define HI542MIPI_SENSOR_ID                     0x00B1
 #define HI253_SENSOR_ID                         0x0092
@@ -285,9 +286,10 @@ NSFeature :  : RAWSensorInfo < _id >  :  : getFlickerPara \
 /*OV*/
 #define SENSOR_DRVNAME_OV23850_MIPI_RAW         "ov23850mipiraw"
 #define SENSOR_DRVNAME_OV16825_MIPI_RAW         "ov16825mipiraw"
-#define SENSOR_DRVNAME_OV13853_MIPI_RAW         "ov13853mipiraw"
-#define SENSOR_DRVNAME_OV13853_MIPI_RAW_OFG_AL1518         "ov13853mipiraw_ofg_al1518"
-#define SENSOR_DRVNAME_OV13853_MIPI_RAW_SY_AL1518          "ov13853mipiraw_sy_al1518"
+#define SENSOR_DRVNAME_OV13853_MIPI_RAW         "ov13853mipiraw"	//wangjie, back cam
+#define SENSOR_DRVNAME_OV13853QTECH_MIPI_RAW    "ov13853qtechmipiraw"	//wangjie, qtech back cam
+#define SENSOR_DRVNAME_OV13853OFILM_MIPI_RAW    "ov13853ofilmmipiraw"	//jerryxie, ofilm back cam
+#define SENSOR_DRVNAME_OV13853SUNNY2_MIPI_RAW    "ov13853sunny2mipiraw"	//allenyao, sunny2 back cam
 #define SENSOR_DRVNAME_OV13850_MIPI_RAW         "ov13850mipiraw"
 #define SENSOR_DRVNAME_OV12830_MIPI_RAW         "ov12830mipiraw"
 #define SENSOR_DRVNAME_OV9760_MIPI_RAW          "ov9760mipiraw"
@@ -336,6 +338,7 @@ NSFeature :  : RAWSensorInfo < _id >  :  : getFlickerPara \
 #define SENSOR_DRVNAME_S5K5CAGX_YUV             "s5k5cagxyuv"
 #define SENSOR_DRVNAME_S5K4H5YX_2LANE_MIPI_RAW  "s5k4h5yx2lanemipiraw"
 #define SENSOR_DRVNAME_S5K5E2YA_MIPI_RAW        "s5k5e2yamipiraw"
+#define SENSOR_DRVNAME_S5K5E8YX_MIPI_RAW        "s5k5e8yxmipiraw"	//wangjie, front cam
 #define SENSOR_DRVNAME_S5K8AAYX_MIPI_YUV        "s5k8aayxmipiyuv"
 #define SENSOR_DRVNAME_S5K8AAYX_YUV             "s5k8aayxyuv"
 /*HI*/
@@ -344,7 +347,6 @@ NSFeature :  : RAWSensorInfo < _id >  :  : getFlickerPara \
 #define SENSOR_DRVNAME_HI704_YUV                "hi704yuv"
 #define SENSOR_DRVNAME_HI551_MIPI_RAW           "hi551mipiraw"
 #define SENSOR_DRVNAME_HI545_MIPI_RAW           "hi545mipiraw"
-#define SENSOR_DRVNAME_HI553_MIPI_RAW           "hi553mipiraw"
 #define SENSOR_DRVNAME_HI542_RAW                "hi542raw"
 #define SENSOR_DRVNAME_HI542MIPI_RAW            "hi542mipiraw"
 #define SENSOR_DRVNAME_HI544_MIPI_RAW           "hi544mipiraw"
