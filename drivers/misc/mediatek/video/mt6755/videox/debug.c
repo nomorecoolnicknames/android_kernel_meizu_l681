@@ -55,7 +55,7 @@ static char debug_buffer[4096 + DPREC_ERROR_LOG_BUFFER_LENGTH];
 #define L681_REFRESH_RATE_ROLLBACK_MS 10000
 #define L681_REFRESH_RATE_FAST_ROLLBACK_MS 3000
 #define L681_REFRESH_RATE_MAX_CONFIRM_FPS 75
-#define L681_REFRESH_RATE_MAX_TEST_FPS 82
+#define L681_REFRESH_RATE_MAX_TEST_FPS 83
 #define L681_REFRESH_RATE_MAX_DATA_RATE 1250
 #define L681_REFRESH_RATE_TEST_PREFIX "test:"
 
@@ -69,6 +69,7 @@ static const struct l681_refresh_rate_mode l681_refresh_rate_modes[] = {
 	{ 78, 594, 1, 3, 4, 8, 14, 14 },
 	{ 80, 610, 1, 3, 3, 6, 12, 12 },
 	{ 82, 622, 1, 2, 3, 6, 9, 9 },
+	{ 83, 625, 1, 1, 2, 4, 4, 4 },
 };
 
 static unsigned int l681_refresh_rate_current = L681_REFRESH_RATE_DEFAULT_FPS;
@@ -761,7 +762,7 @@ static ssize_t l681_refresh_rate_read(struct file *file, char __user *ubuf,
 	int len;
 
 	len = snprintf(buf, sizeof(buf),
-		       "%u\nprevious=%u pending=%u seq=%u timeout_ms=%u supported=54,60,65,70,72,75 unsafe_test=78,80,82 rejected=84,85,90 phy_max=%u\n",
+		       "%u\nprevious=%u pending=%u seq=%u timeout_ms=%u supported=54,60,65,70,72,75 unsafe_test=78,80,82,83 rejected=84,85,90 phy_max=%u\n",
 		       l681_refresh_rate_current, l681_refresh_rate_previous,
 		       l681_refresh_rate_pending, l681_refresh_rate_seq,
 		       L681_REFRESH_RATE_ROLLBACK_MS, L681_REFRESH_RATE_MAX_DATA_RATE);
