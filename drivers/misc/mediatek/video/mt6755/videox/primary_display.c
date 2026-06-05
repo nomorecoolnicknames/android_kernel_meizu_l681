@@ -5311,6 +5311,13 @@ static int primary_display_l681_mipi_timing_change(const struct l681_refresh_rat
 	dsi_params->horizontal_sync_active = mode->hsa;
 	dsi_params->horizontal_backporch = mode->hbp;
 	dsi_params->horizontal_frontporch = mode->hfp;
+	if (mode->bpp == 2) {
+		dsi_params->data_format.format = LCM_DSI_FORMAT_RGB565;
+		dsi_params->PS = LCM_PACKED_PS_16BIT_RGB565;
+	} else {
+		dsi_params->data_format.format = LCM_DSI_FORMAT_RGB888;
+		dsi_params->PS = LCM_PACKED_PS_24BIT_RGB888;
+	}
 
 	dpmgr_path_build_cmdq(pgc->dpmgr_handle,
 			cmdq_handle, CMDQ_STOP_VDO_MODE, 0);
@@ -5346,8 +5353,9 @@ static int primary_display_l681_mipi_timing_change(const struct l681_refresh_rat
 		return ret;
 	}
 
-	DISPCHECK("l681_refresh_rate: timing-applied fps=%u pll=%u v=%u/%u/%u h=%u/%u/%u\n",
-		  mode->fps, mode->pll, mode->vsa, mode->vbp, mode->vfp,
+	DISPCHECK("l681_refresh_rate: timing-applied fps=%u pll=%u bpp=%u ps=%u format=%u v=%u/%u/%u h=%u/%u/%u\n",
+		  mode->fps, mode->pll, mode->bpp, dsi_params->PS,
+		  dsi_params->data_format.format, mode->vsa, mode->vbp, mode->vfp,
 		  mode->hsa, mode->hbp, mode->hfp);
 
 	_primary_path_unlock(__func__);

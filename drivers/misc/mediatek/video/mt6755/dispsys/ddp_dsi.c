@@ -3340,6 +3340,9 @@ int ddp_dsi_ioctl(DISP_MODULE_ENUM module, void *cmdq_handle, unsigned int ioctl
 				if (!dsi_params)
 					return -1;
 				_dsi_context[0].dsi_params = *dsi_params;
+				DSI_PS_Control(module, cmdq_handle, dsi_params,
+					       dsi_params->horizontal_active_pixel,
+					       dsi_params->vertical_active_line);
 				DSI_Config_VDO_Timing(module, cmdq_handle, dsi_params);
 				break;
 			}

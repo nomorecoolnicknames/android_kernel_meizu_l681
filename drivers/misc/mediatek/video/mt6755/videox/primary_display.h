@@ -252,6 +252,7 @@ struct l681_refresh_rate_mode {
 	unsigned int hsa;
 	unsigned int hbp;
 	unsigned int hfp;
+	unsigned int bpp;
 };
 
 int primary_display_mipi_clk_change(unsigned int clk_value);
