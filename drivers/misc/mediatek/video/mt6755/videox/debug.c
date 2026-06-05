@@ -78,15 +78,15 @@ static const struct l681_refresh_rate_mode l681_refresh_rate_modes[] = {
 	{ 80, 610, 1, 3, 3, 6, 12, 12 },
 	{ 82, 622, 1, 2, 3, 6, 9, 9 },
 	{ 83, 625, 1, 1, 2, 4, 4, 4 },
-	{ 84, 529, 1, 1, 2, 4, 4, 4 },
-	{ 85, 536, 1, 1, 2, 4, 4, 4 },
-	{ 90, 567, 1, 1, 2, 4, 4, 4 },
-	{ 96, 605, 1, 1, 2, 4, 4, 4 },
-	{ 100, 630, 1, 1, 2, 4, 4, 4 },
-	{ 105, 662, 1, 1, 2, 4, 4, 4 },
-	{ 110, 693, 1, 1, 2, 4, 4, 4 },
-	{ 115, 725, 1, 1, 2, 4, 4, 4 },
-	{ 119, 750, 1, 1, 2, 4, 4, 4 },
+	{ 84, 530, 1, 1, 2, 4, 4, 5 },
+	{ 85, 536, 1, 1, 2, 4, 4, 5 },
+	{ 90, 568, 1, 1, 2, 4, 4, 5 },
+	{ 96, 606, 1, 1, 2, 4, 4, 5 },
+	{ 100, 631, 1, 1, 2, 4, 4, 5 },
+	{ 105, 662, 1, 1, 2, 4, 4, 5 },
+	{ 110, 694, 1, 1, 2, 4, 4, 5 },
+	{ 115, 726, 1, 1, 2, 4, 4, 5 },
+	{ 119, 750, 1, 1, 1, 4, 4, 4 },
 };
 
 static unsigned int l681_refresh_rate_current = L681_REFRESH_RATE_DEFAULT_FPS;
@@ -146,6 +146,8 @@ static int l681_refresh_rate_apply(unsigned int fps, const char *reason,
 	unsigned int active_fps;
 	unsigned int pending;
 	unsigned int seq;
+	unsigned int htotal;
+	unsigned int vtotal;
 	int ret;
 
 	mutex_lock(&l681_refresh_rate_lock);
@@ -175,10 +177,13 @@ static int l681_refresh_rate_apply(unsigned int fps, const char *reason,
 		}
 	}
 
-	DISPMSG("l681_refresh_rate: marker=apply reason=%s fps=%u effective_millihz=%u pll=%u v=%u/%u/%u h=%u/%u/%u previous=%u current=%u pending=%u seq=%u\n",
+	htotal = L681_REFRESH_RATE_WIDTH + mode->hsa + mode->hbp + mode->hfp;
+	vtotal = L681_REFRESH_RATE_HEIGHT + mode->vsa + mode->vbp + mode->vfp;
+	DISPMSG("l681_refresh_rate: marker=apply reason=%s fps=%u effective_millihz=%u pll=%u data_rate=%u htotal=%u vtotal=%u v=%u/%u/%u h=%u/%u/%u previous=%u current=%u pending=%u seq=%u\n",
 		reason, fps, l681_refresh_rate_effective_millihz(mode),
-		mode->pll, mode->vsa, mode->vbp, mode->vfp, mode->hsa,
-		mode->hbp, mode->hfp, previous, active_fps, pending, seq);
+		mode->pll, mode->pll * 2, htotal, vtotal, mode->vsa,
+		mode->vbp, mode->vfp, mode->hsa, mode->hbp, mode->hfp,
+		previous, active_fps, pending, seq);
 	mutex_lock(&l681_refresh_rate_apply_lock);
 	ret = primary_display_l681_refresh_rate_change(mode);
 	mutex_unlock(&l681_refresh_rate_apply_lock);
@@ -840,7 +845,7 @@ static ssize_t l681_refresh_rate_read(struct file *file, char __user *ubuf,
 	mode = l681_refresh_rate_find_mode(l681_refresh_rate_current);
 
 	len = snprintf(buf, sizeof(buf),
-		       "%u\neffective_millihz=%u previous=%u pending=%u seq=%u timeout_ms=%u supported=54,60,65,70,72,75 unsafe_test=78,80,82,83 danger_test=84,85,90,96,100,105,110,115,119 rejected=120+ phy_max=%u danger_phy_max=%u danger_reboot_ms=%u\n",
+		       "%u\neffective_millihz=%u previous=%u pending=%u seq=%u timeout_ms=%u supported=54,60,65,70,72,75 unsafe_test=78,80,82,83 danger_test=84,85,90,96,100,105,110,115,119 rejected=120+ phy_max=%u danger_phy_max=%u danger_reboot_ms=%u timing_note=84-115-hfp5-119-vtotal1923\n",
 		       l681_refresh_rate_current,
 		       l681_refresh_rate_effective_millihz(mode),
 		       l681_refresh_rate_previous, l681_refresh_rate_pending,
@@ -948,11 +953,13 @@ schedule_apply:
 	l681_refresh_rate_previous = l681_refresh_rate_current;
 	l681_refresh_rate_pending = fps;
 	l681_refresh_rate_seq++;
-	l681_refresh_rate_danger_seq = allow_danger ? l681_refresh_rate_seq : 0;
+	l681_refresh_rate_danger_seq =
+		(allow_danger || fps > L681_REFRESH_RATE_MAX_CONFIRM_FPS) ?
+		l681_refresh_rate_seq : 0;
 	mutex_unlock(&l681_refresh_rate_lock);
 	schedule_delayed_work(&l681_refresh_rate_rollback_work,
 			      msecs_to_jiffies(l681_refresh_rate_rollback_ms(fps)));
-	if (allow_danger)
+	if (allow_danger || fps > L681_REFRESH_RATE_MAX_CONFIRM_FPS)
 		mod_timer(&l681_refresh_rate_danger_reboot_timer,
 			  jiffies + msecs_to_jiffies(L681_REFRESH_RATE_DANGER_REBOOT_MS));
 	ret = l681_refresh_rate_apply(fps, allow_danger ? "danger-request" : "request",
