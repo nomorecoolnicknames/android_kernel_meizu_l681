@@ -58,8 +58,9 @@ static char debug_buffer[4096 + DPREC_ERROR_LOG_BUFFER_LENGTH];
 #define L681_REFRESH_RATE_FAST_ROLLBACK_MS 10000
 #define L681_REFRESH_RATE_TEST_REBOOT_GRACE_MS 5000
 #define L681_REFRESH_RATE_MAX_CONFIRM_FPS 60
-#define L681_REFRESH_RATE_MAX_TEST_FPS 75
+#define L681_REFRESH_RATE_MAX_TEST_FPS 90
 #define L681_REFRESH_RATE_MAX_DATA_RATE 1250
+#define L681_REFRESH_RATE_MAX_TEST_DATA_RATE 1500
 #define L681_REFRESH_RATE_DANGER_MAX_FPS 75
 #define L681_REFRESH_RATE_DANGER_MAX_DATA_RATE 1500
 #define L681_REFRESH_RATE_DANGER_REBOOT_MS 5000
@@ -82,6 +83,7 @@ static const struct l681_refresh_rate_mode l681_refresh_rate_modes[] = {
 	{ 54, 450, 4, 3, 9, 40, 40, 40, L681_REFRESH_RATE_RGB888_BPP },
 	{ 60, 497, 4, 3, 9, 40, 40, 40, L681_REFRESH_RATE_RGB888_BPP },
 	{ 75, 623, 4, 3, 9, 40, 40, 40, L681_REFRESH_RATE_RGB888_BPP },
+	{ 90, 747, 4, 3, 9, 40, 40, 40, L681_REFRESH_RATE_RGB888_BPP },
 };
 
 static unsigned int l681_refresh_rate_current = L681_REFRESH_RATE_DEFAULT_FPS;
@@ -152,8 +154,9 @@ static unsigned int l681_refresh_rate_effective_millihz(const struct l681_refres
 }
 
 static int l681_refresh_rate_apply(unsigned int fps, const char *reason,
-				   int allow_danger, int allow_insane,
-				   int allow_extreme565, int blocking)
+				   int allow_test_phy, int allow_danger,
+				   int allow_insane, int allow_extreme565,
+				   int blocking)
 {
 	const struct l681_refresh_rate_mode *mode = l681_refresh_rate_find_mode(fps);
 	unsigned int previous;
@@ -197,6 +200,12 @@ static int l681_refresh_rate_apply(unsigned int fps, const char *reason,
 				reason, fps, mode->pll, mode->pll * 2,
 				L681_REFRESH_RATE_MAX_DATA_RATE,
 				L681_REFRESH_RATE_DANGER_MAX_DATA_RATE, seq);
+		} else if (allow_test_phy &&
+		    mode->pll * 2 <= L681_REFRESH_RATE_MAX_TEST_DATA_RATE) {
+			DISPMSG("l681_refresh_rate: marker=test-phy-override reason=%s fps=%u pll=%u data_rate=%u stock_max=%u test_max=%u seq=%u\n",
+				reason, fps, mode->pll, mode->pll * 2,
+				L681_REFRESH_RATE_MAX_DATA_RATE,
+				L681_REFRESH_RATE_MAX_TEST_DATA_RATE, seq);
 		} else {
 			DISPMSG("l681_refresh_rate: marker=reject-phy-limit reason=%s fps=%u pll=%u data_rate=%u max=%u seq=%u\n",
 				reason, fps, mode->pll, mode->pll * 2,
@@ -248,7 +257,7 @@ static void l681_refresh_rate_rollback_worker(struct work_struct *work)
 	mutex_unlock(&l681_refresh_rate_lock);
 	DISPMSG("l681_refresh_rate: marker=rollback-timeout seq=%u from=%u to=%u\n",
 		rollback_seq, l681_refresh_rate_current, rollback_fps);
-	ret = l681_refresh_rate_apply(rollback_fps, "timeout", 0, 0, 0, 1);
+	ret = l681_refresh_rate_apply(rollback_fps, "timeout", 0, 0, 0, 0, 1);
 	if (ret) {
 		DISPMSG("l681_refresh_rate: marker=rollback-timeout-fail seq=%u ret=%d\n",
 			rollback_seq, ret);
@@ -873,14 +882,15 @@ static ssize_t l681_refresh_rate_read(struct file *file, char __user *ubuf,
 	mode = l681_refresh_rate_find_mode(l681_refresh_rate_current);
 
 	len = snprintf(buf, sizeof(buf),
-			       "%u\neffective_millihz=%u previous=%u pending=%u seq=%u timeout_ms=%u test_reboot_grace_ms=%u supported=54,60 test=75 rejected=76+ phy_max=%u timing_note=hx8399-stock-porch-75-uses-623MHz-nonblocking-test-blocking-rollback-failsafe\n",
+			       "%u\neffective_millihz=%u previous=%u pending=%u seq=%u timeout_ms=%u test_reboot_grace_ms=%u supported=54,60 test=75,90 rejected=91+ phy_max=%u test_phy_max=%u timing_note=hx8399-stock-porch-75-uses-623MHz-90-uses-747MHz-nonblocking-test-blocking-rollback-failsafe\n",
 			       l681_refresh_rate_current,
 			       l681_refresh_rate_effective_millihz(mode),
 			       l681_refresh_rate_previous, l681_refresh_rate_pending,
 			       l681_refresh_rate_seq,
 			       L681_REFRESH_RATE_ROLLBACK_MS,
 			       L681_REFRESH_RATE_TEST_REBOOT_GRACE_MS,
-			       L681_REFRESH_RATE_MAX_DATA_RATE);
+			       L681_REFRESH_RATE_MAX_DATA_RATE,
+			       L681_REFRESH_RATE_MAX_TEST_DATA_RATE);
 
 	return simple_read_from_buffer(ubuf, count, ppos, buf, len);
 }
@@ -939,7 +949,7 @@ static ssize_t l681_refresh_rate_write(struct file *file,
 		l681_refresh_rate_pending = 0;
 		l681_refresh_rate_danger_seq = 0;
 		mutex_unlock(&l681_refresh_rate_lock);
-		ret = l681_refresh_rate_apply(fps, "manual-rollback", 0, 0, 0, 1);
+		ret = l681_refresh_rate_apply(fps, "manual-rollback", 0, 0, 0, 0, 1);
 		if (ret)
 			return ret;
 		return count;
@@ -1034,7 +1044,8 @@ static ssize_t l681_refresh_rate_write(struct file *file,
 	else
 		apply_reason = "request";
 	blocking_apply = fps <= L681_REFRESH_RATE_MAX_CONFIRM_FPS;
-	ret = l681_refresh_rate_apply(fps, apply_reason, allow_danger,
+	ret = l681_refresh_rate_apply(fps, apply_reason, allow_unsafe_test,
+				      allow_danger,
 				      allow_insane, allow_extreme565, blocking_apply);
 	if (ret) {
 		if (!allow_danger && fps <= L681_REFRESH_RATE_MAX_CONFIRM_FPS) {
