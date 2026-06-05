@@ -247,6 +247,8 @@ static void write_cmos_sensor(kal_uint32 addr, kal_uint32 para)
 }
 
 #define OV5670_OTP_USE
+#define OV5670_MODULE_ID_JK 0x02
+#define OV5670_MODULE_ID_L681 0x44
 #if defined(OV5670_OTP_USE)
 
 #define RG_Ratio_Typical 290
@@ -1752,7 +1754,8 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 				write_cmos_sensor(0x0100, 0x01);  // must write this reg to open otp fun
 				update_otp_info(&module_id);
 				write_cmos_sensor(0x0100, 0x00);  // software standby
-				if(module_id == 0x02){
+				if((module_id == OV5670_MODULE_ID_JK) ||
+				   (module_id == OV5670_MODULE_ID_L681)){
 #endif
 					LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id,*sensor_id);
 					strcpy(camera_f_info,"JK_OV5670");
@@ -1768,7 +1771,9 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		retry = 2;
 	}
 #if defined(OV5670_OTP_USE)
-	if ((*sensor_id != imgsensor_info.sensor_id) || (module_id != 0x02))
+	if ((*sensor_id != imgsensor_info.sensor_id) ||
+	    ((module_id != OV5670_MODULE_ID_JK) &&
+	     (module_id != OV5670_MODULE_ID_L681)))
 #else
 	if (*sensor_id != imgsensor_info.sensor_id)
 #endif
