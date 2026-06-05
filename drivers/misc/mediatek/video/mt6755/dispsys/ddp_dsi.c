@@ -1140,7 +1140,7 @@ void DSI_PHY_clk_change(DISP_MODULE_ENUM module, cmdqRecHandle cmdq, LCM_DSI_PAR
 
 	for (i = DSI_MODULE_BEGIN(module); i <= DSI_MODULE_END(module); i++) {
 		if (0 != data_Rate) {
-			if (data_Rate > 1250) {
+			if (data_Rate > 1500) {
 				DISPCHECK("mipitx Data Rate exceed limitation(%d)\n", data_Rate);
 				ASSERT(0);
 			} else if (data_Rate >= 500) {
@@ -1413,7 +1413,7 @@ void DSI_PHY_clk_setting(DISP_MODULE_ENUM module, cmdqRecHandle cmdq, LCM_DSI_PA
 		mdelay(1);
 
 		if (0 != data_Rate) {
-			if (data_Rate > 1250) {
+			if (data_Rate > 1500) {
 				DISPCHECK("mipitx Data Rate exceed limitation(%d)\n", data_Rate);
 				ASSERT(0);
 			} else if (data_Rate >= 500) {
@@ -2755,7 +2755,7 @@ int ddp_dsi_set_lcm_utils(DISP_MODULE_ENUM module, LCM_DRIVER *lcm_drv)
 void DSI_ChangeClk(DISP_MODULE_ENUM module, UINT32 clk)
 {
 	int i = 0;
-	if (clk > 1250 || clk < 50)
+	if (clk > 1500 || clk < 50)
 		return;
 
 	for (i = DSI_MODULE_BEGIN(module); i <= DSI_MODULE_END(module); i++) {
