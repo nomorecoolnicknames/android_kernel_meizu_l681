@@ -5267,7 +5267,8 @@ int primary_display_mipi_clk_change(unsigned int clk_value)
 	return 0;
 }
 
-static int primary_display_l681_mipi_timing_change(const struct l681_refresh_rate_mode *mode)
+static int primary_display_l681_mipi_timing_change(const struct l681_refresh_rate_mode *mode,
+						   int blocking)
 {
 	cmdqRecHandle cmdq_handle = NULL;
 	LCM_DSI_PARAMS *dsi_params;
@@ -5341,7 +5342,7 @@ static int primary_display_l681_mipi_timing_change(const struct l681_refresh_rat
 	dpmgr_path_trigger(pgc->dpmgr_handle, cmdq_handle, CMDQ_ENABLE);
 	ddp_mutex_set_sof_wait(dpmgr_path_get_mutex(pgc->dpmgr_handle), pgc->cmdq_handle_config_esd, 0);
 	if (!ret)
-		ret = _cmdq_flush_config_handle_mira(cmdq_handle, 1);
+		ret = _cmdq_flush_config_handle_mira(cmdq_handle, blocking);
 
 	cmdqRecDestroy(cmdq_handle);
 	cmdq_handle = NULL;
@@ -5363,7 +5364,8 @@ static int primary_display_l681_mipi_timing_change(const struct l681_refresh_rat
 	return 0;
 }
 
-int primary_display_l681_refresh_rate_change(const struct l681_refresh_rate_mode *mode)
+int primary_display_l681_refresh_rate_change(const struct l681_refresh_rate_mode *mode,
+					     int blocking)
 {
 	unsigned int old_lcm_fps;
 	unsigned int new_lcm_fps;
@@ -5372,7 +5374,7 @@ int primary_display_l681_refresh_rate_change(const struct l681_refresh_rate_mode
 	if (!mode || !mode->fps || !mode->pll)
 		return -EINVAL;
 
-	ret = primary_display_l681_mipi_timing_change(mode);
+	ret = primary_display_l681_mipi_timing_change(mode, blocking);
 	if (ret)
 		return ret;
 
@@ -5381,8 +5383,8 @@ int primary_display_l681_refresh_rate_change(const struct l681_refresh_rate_mode
 	old_lcm_fps = pgc->lcm_fps;
 	pgc->lcm_fps = new_lcm_fps;
 	lcd_fps = new_lcm_fps;
-	DISPCHECK("l681_refresh_rate: display-fps old_lcm_fps=%u new_lcm_fps=%u clk=%u\n",
-		  old_lcm_fps, new_lcm_fps, mode->pll);
+	DISPCHECK("l681_refresh_rate: display-fps old_lcm_fps=%u new_lcm_fps=%u clk=%u blocking=%u\n",
+		  old_lcm_fps, new_lcm_fps, mode->pll, blocking);
 	_primary_path_unlock(__func__);
 
 	return 0;

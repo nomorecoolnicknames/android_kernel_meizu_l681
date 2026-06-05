@@ -256,7 +256,8 @@ struct l681_refresh_rate_mode {
 };
 
 int primary_display_mipi_clk_change(unsigned int clk_value);
-int primary_display_l681_refresh_rate_change(const struct l681_refresh_rate_mode *mode);
+int primary_display_l681_refresh_rate_change(const struct l681_refresh_rate_mode *mode,
+					     int blocking);
 
 void _cmdq_insert_wait_frame_done_token_mira(void *handle);
 int primary_display_get_max_layer(void);
