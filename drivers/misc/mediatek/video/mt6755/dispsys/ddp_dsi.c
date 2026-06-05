@@ -3323,18 +3323,27 @@ int ddp_dsi_ioctl(DISP_MODULE_ENUM module, void *cmdq_handle, unsigned int ioctl
 			cmdq_handle, DSI_VFP , vfp);
 			break;
 		}
-	case DDP_PHY_CLK_CHANGE:
+		case DDP_PHY_CLK_CHANGE:
+			{
+				LCM_DSI_PARAMS *dsi_params = &_dsi_context[0].dsi_params;
+				dsi_params->PLL_CLOCK = *params;
+				/*DSI_WaitForNotBusy(module, cmdq_handle);*/
+				DSI_PHY_clk_change(module, cmdq_handle, dsi_params);
+				DSI_PHY_TIMCONFIG(module, cmdq_handle, dsi_params);
+				break;
+			}
+		case DDP_DSI_TIMING_CHANGE:
+			{
+				LCM_DSI_PARAMS *dsi_params = (LCM_DSI_PARAMS *)params;
+				if (!dsi_params)
+					return -1;
+				_dsi_context[0].dsi_params = *dsi_params;
+				DSI_Config_VDO_Timing(module, cmdq_handle, dsi_params);
+				break;
+			}
+	#if 0
+		case DDP_ENTER_ULPS:
 		{
-			LCM_DSI_PARAMS *dsi_params = &_dsi_context[0].dsi_params;
-			dsi_params->PLL_CLOCK = *params;
-			/*DSI_WaitForNotBusy(module, cmdq_handle);*/
-			DSI_PHY_clk_change(module, cmdq_handle, dsi_params);
-			DSI_PHY_TIMCONFIG(module, cmdq_handle, dsi_params);
-			break;
-		}
-#if 0
-	case DDP_ENTER_ULPS:
-	{
 		DSI_Enter_ULPS(module, cmdq_handle);
 		break;
 	}

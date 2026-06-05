@@ -5267,26 +5267,114 @@ int primary_display_mipi_clk_change(unsigned int clk_value)
 	return 0;
 }
 
-int primary_display_l681_refresh_rate_change(unsigned int fps, unsigned int clk_value)
+static int primary_display_l681_mipi_timing_change(const struct l681_refresh_rate_mode *mode)
+{
+	cmdqRecHandle cmdq_handle = NULL;
+	LCM_DSI_PARAMS *dsi_params;
+	LCM_DSI_PARAMS old_dsi_params;
+	unsigned int clk_value;
+	int ret;
+
+	if (!mode)
+		return -EINVAL;
+
+	if (pgc->state == DISP_SLEEPED) {
+		DISPCHECK("Sleep State l681 timing change invald\n");
+		return -EINVAL;
+	}
+
+	_primary_path_lock(__func__);
+
+	if (!primary_display_is_video_mode()) {
+		DISPCHECK("l681_refresh_rate: timing change CMD Mode return\n");
+		_primary_path_unlock(__func__);
+		return 0;
+	}
+
+	ret = cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &cmdq_handle);
+	if (ret) {
+		DISPCHECK("l681_refresh_rate: timing cmdq create failed ret=%d\n", ret);
+		_primary_path_unlock(__func__);
+		return ret;
+	}
+	cmdqRecReset(cmdq_handle);
+
+	dsi_params = &pgc->plcm->params->dsi;
+	old_dsi_params = *dsi_params;
+	clk_value = mode->pll;
+
+	_cmdq_insert_wait_frame_done_token_mira(cmdq_handle);
+	dsi_params->PLL_CLOCK = mode->pll;
+	dsi_params->vertical_sync_active = mode->vsa;
+	dsi_params->vertical_backporch = mode->vbp;
+	dsi_params->vertical_frontporch = mode->vfp;
+	dsi_params->horizontal_sync_active = mode->hsa;
+	dsi_params->horizontal_backporch = mode->hbp;
+	dsi_params->horizontal_frontporch = mode->hfp;
+
+	dpmgr_path_build_cmdq(pgc->dpmgr_handle,
+			cmdq_handle, CMDQ_STOP_VDO_MODE, 0);
+
+	ret = dpmgr_path_ioctl(primary_get_dpmgr_handle(), cmdq_handle,
+			DDP_DSI_TIMING_CHANGE, dsi_params);
+	if (ret)
+		DISPCHECK("l681_refresh_rate: timing ioctl failed ret=%d\n", ret);
+
+	ret += dpmgr_path_ioctl(primary_get_dpmgr_handle(), cmdq_handle,
+			DDP_PHY_CLK_CHANGE, &clk_value);
+	if (ret)
+		DISPCHECK("l681_refresh_rate: phy/timing ioctl failed ret=%d\n", ret);
+
+	dpmgr_path_build_cmdq(pgc->dpmgr_handle,
+			cmdq_handle, CMDQ_START_VDO_MODE, 0);
+
+	cmdqRecClearEventToken(cmdq_handle, CMDQ_EVENT_MUTEX0_STREAM_EOF);
+	cmdqRecClearEventToken(cmdq_handle, CMDQ_EVENT_DISP_RDMA0_EOF);
+
+	dpmgr_path_trigger(pgc->dpmgr_handle, cmdq_handle, CMDQ_ENABLE);
+	ddp_mutex_set_sof_wait(dpmgr_path_get_mutex(pgc->dpmgr_handle), pgc->cmdq_handle_config_esd, 0);
+	if (!ret)
+		ret = _cmdq_flush_config_handle_mira(cmdq_handle, 1);
+
+	cmdqRecDestroy(cmdq_handle);
+	cmdq_handle = NULL;
+
+	if (ret) {
+		*dsi_params = old_dsi_params;
+		DISPCHECK("l681_refresh_rate: timing cmdq flush failed ret=%d\n", ret);
+		_primary_path_unlock(__func__);
+		return ret;
+	}
+
+	DISPCHECK("l681_refresh_rate: timing-applied fps=%u pll=%u v=%u/%u/%u h=%u/%u/%u\n",
+		  mode->fps, mode->pll, mode->vsa, mode->vbp, mode->vfp,
+		  mode->hsa, mode->hbp, mode->hfp);
+
+	_primary_path_unlock(__func__);
+
+	return 0;
+}
+
+int primary_display_l681_refresh_rate_change(const struct l681_refresh_rate_mode *mode)
 {
 	unsigned int old_lcm_fps;
 	unsigned int new_lcm_fps;
 	int ret;
 
-	if (!fps || !clk_value)
+	if (!mode || !mode->fps || !mode->pll)
 		return -EINVAL;
 
-	ret = primary_display_mipi_clk_change(clk_value);
+	ret = primary_display_l681_mipi_timing_change(mode);
 	if (ret)
 		return ret;
 
-	new_lcm_fps = fps * 100;
+	new_lcm_fps = mode->fps * 100;
 	_primary_path_lock(__func__);
 	old_lcm_fps = pgc->lcm_fps;
 	pgc->lcm_fps = new_lcm_fps;
 	lcd_fps = new_lcm_fps;
 	DISPCHECK("l681_refresh_rate: display-fps old_lcm_fps=%u new_lcm_fps=%u clk=%u\n",
-		  old_lcm_fps, new_lcm_fps, clk_value);
+		  old_lcm_fps, new_lcm_fps, mode->pll);
 	_primary_path_unlock(__func__);
 
 	return 0;

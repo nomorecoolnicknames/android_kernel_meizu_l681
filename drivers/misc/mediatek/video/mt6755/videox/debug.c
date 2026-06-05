@@ -54,22 +54,21 @@ static char debug_buffer[4096 + DPREC_ERROR_LOG_BUFFER_LENGTH];
 #define L681_REFRESH_RATE_DEFAULT_FPS 54
 #define L681_REFRESH_RATE_ROLLBACK_MS 10000
 #define L681_REFRESH_RATE_FAST_ROLLBACK_MS 3000
-#define L681_REFRESH_RATE_MAX_CONFIRM_FPS 72
-#define L681_REFRESH_RATE_MAX_TEST_FPS 75
+#define L681_REFRESH_RATE_MAX_CONFIRM_FPS 75
+#define L681_REFRESH_RATE_MAX_TEST_FPS 82
+#define L681_REFRESH_RATE_MAX_DATA_RATE 1250
 #define L681_REFRESH_RATE_TEST_PREFIX "test:"
 
-struct l681_refresh_rate_mode {
-	unsigned int fps;
-	unsigned int pll;
-};
-
 static const struct l681_refresh_rate_mode l681_refresh_rate_modes[] = {
-	{ 54, 450 },
-	{ 60, 497 },
-	{ 65, 539 },
-	{ 70, 580 },
-	{ 72, 597 },
-	{ 75, 621 },
+	{ 54, 450, 4, 3, 9, 40, 40, 40 },
+	{ 60, 497, 4, 3, 9, 40, 40, 40 },
+	{ 65, 539, 4, 3, 9, 40, 40, 40 },
+	{ 70, 580, 4, 3, 9, 40, 40, 40 },
+	{ 72, 597, 4, 3, 9, 40, 40, 40 },
+	{ 75, 583, 2, 4, 4, 10, 20, 20 },
+	{ 78, 594, 1, 3, 4, 8, 14, 14 },
+	{ 80, 610, 1, 3, 3, 6, 12, 12 },
+	{ 82, 622, 1, 2, 3, 6, 9, 9 },
 };
 
 static unsigned int l681_refresh_rate_current = L681_REFRESH_RATE_DEFAULT_FPS;
@@ -80,16 +79,16 @@ static DEFINE_MUTEX(l681_refresh_rate_lock);
 static DEFINE_MUTEX(l681_refresh_rate_apply_lock);
 static struct delayed_work l681_refresh_rate_rollback_work;
 
-static unsigned int l681_refresh_rate_to_pll(unsigned int fps)
+static const struct l681_refresh_rate_mode *l681_refresh_rate_find_mode(unsigned int fps)
 {
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(l681_refresh_rate_modes); i++) {
 		if (l681_refresh_rate_modes[i].fps == fps)
-			return l681_refresh_rate_modes[i].pll;
+			return &l681_refresh_rate_modes[i];
 	}
 
-	return 0;
+	return NULL;
 }
 
 static unsigned int l681_refresh_rate_rollback_ms(unsigned int fps)
@@ -102,7 +101,7 @@ static unsigned int l681_refresh_rate_rollback_ms(unsigned int fps)
 
 static int l681_refresh_rate_apply(unsigned int fps, const char *reason)
 {
-	unsigned int pll = l681_refresh_rate_to_pll(fps);
+	const struct l681_refresh_rate_mode *mode = l681_refresh_rate_find_mode(fps);
 	unsigned int previous;
 	unsigned int active_fps;
 	unsigned int pending;
@@ -116,20 +115,28 @@ static int l681_refresh_rate_apply(unsigned int fps, const char *reason)
 	seq = l681_refresh_rate_seq;
 	mutex_unlock(&l681_refresh_rate_lock);
 
-	if (!pll) {
+	if (!mode) {
 		DISPMSG("l681_refresh_rate: marker=reject reason=%s fps=%u current=%u pending=%u seq=%u\n",
 			reason, fps, active_fps, pending, seq);
 		return -EINVAL;
 	}
+	if (mode->pll * 2 > L681_REFRESH_RATE_MAX_DATA_RATE) {
+		DISPMSG("l681_refresh_rate: marker=reject-phy-limit reason=%s fps=%u pll=%u data_rate=%u max=%u seq=%u\n",
+			reason, fps, mode->pll, mode->pll * 2,
+			L681_REFRESH_RATE_MAX_DATA_RATE, seq);
+		return -EINVAL;
+	}
 
-	DISPMSG("l681_refresh_rate: marker=apply reason=%s fps=%u pll=%u previous=%u current=%u pending=%u seq=%u\n",
-		reason, fps, pll, previous, active_fps, pending, seq);
+	DISPMSG("l681_refresh_rate: marker=apply reason=%s fps=%u pll=%u v=%u/%u/%u h=%u/%u/%u previous=%u current=%u pending=%u seq=%u\n",
+		reason, fps, mode->pll, mode->vsa, mode->vbp, mode->vfp,
+		mode->hsa, mode->hbp, mode->hfp, previous, active_fps,
+		pending, seq);
 	mutex_lock(&l681_refresh_rate_apply_lock);
-	ret = primary_display_l681_refresh_rate_change(fps, pll);
+	ret = primary_display_l681_refresh_rate_change(mode);
 	mutex_unlock(&l681_refresh_rate_apply_lock);
 	if (ret) {
 		DISPMSG("l681_refresh_rate: marker=apply-fail reason=%s fps=%u pll=%u ret=%d seq=%u\n",
-			reason, fps, pll, ret, seq);
+			reason, fps, mode->pll, ret, seq);
 		return ret;
 	}
 
@@ -754,10 +761,10 @@ static ssize_t l681_refresh_rate_read(struct file *file, char __user *ubuf,
 	int len;
 
 	len = snprintf(buf, sizeof(buf),
-		       "%u\nprevious=%u pending=%u seq=%u timeout_ms=%u supported=54,60,65,70,72 unsafe_test=75 rejected=80,85,90\n",
+		       "%u\nprevious=%u pending=%u seq=%u timeout_ms=%u supported=54,60,65,70,72,75 unsafe_test=78,80,82 rejected=84,85,90 phy_max=%u\n",
 		       l681_refresh_rate_current, l681_refresh_rate_previous,
 		       l681_refresh_rate_pending, l681_refresh_rate_seq,
-		       L681_REFRESH_RATE_ROLLBACK_MS);
+		       L681_REFRESH_RATE_ROLLBACK_MS, L681_REFRESH_RATE_MAX_DATA_RATE);
 
 	return simple_read_from_buffer(ubuf, count, ppos, buf, len);
 }
