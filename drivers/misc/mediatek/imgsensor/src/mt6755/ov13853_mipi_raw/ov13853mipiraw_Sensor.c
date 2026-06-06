@@ -1188,7 +1188,8 @@ static void capture_setting(kal_uint16 currefps)
 	//write_cmos_sensor(0x5b21, 0x91); //
 	//write_cmos_sensor(0x5b22, 0x02); //
 	//write_cmos_sensor(0x5b23, 0x91); //
-//	write_cmos_sensor(0x0100, 0x01); //
+	write_cmos_sensor(0x0100, 0x01);
+	LOG_INF("l681_camera: marker=ov13853-capture-stream-on\n");
 
 #else
 if (pre_currefps != currefps)
