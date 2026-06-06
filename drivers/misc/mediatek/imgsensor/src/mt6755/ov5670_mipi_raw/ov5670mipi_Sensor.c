@@ -497,7 +497,7 @@ static int update_wb_gain(int R_gain,int B_gain,int G_gain)
 		write_cmos_sensor(0x5033,R_gain&0x00ff);
 	}
 
-	if(G_gain>0x400)
+	if(G_gain>0x400 && G_gain <= 0x600)
 	{
 		write_cmos_sensor(0x5034,G_gain>>8);
 		write_cmos_sensor(0x5035,G_gain&0x00ff);
