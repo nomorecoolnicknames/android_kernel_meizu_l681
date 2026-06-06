@@ -1529,12 +1529,9 @@ static void capture_setting(kal_uint16 currefps)
 		write_cmos_sensor(0x4601, 0x03);
 		write_cmos_sensor(0x4017, 0x08); //threshold= 2LSB for full size
 		write_cmos_sensor(0x400a, 0x02); //
-		write_cmos_sensor(0x400b, 0x00); //
-
-		if(OV5670_long_exp_flag) {
+			write_cmos_sensor(0x400b, 0x00); //
 			write_cmos_sensor(0x0100, 0x01);
 		}
-	}
 
 
 }
