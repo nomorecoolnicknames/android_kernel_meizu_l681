@@ -63,10 +63,10 @@ static imgsensor_info_struct imgsensor_info = {
         .framelength = 3328,            //record different mode's framelength
         .startx = 0,                    //record different mode's startx of grabwindow
         .starty = 0,                    //record different mode's starty of grabwindow
-        .grabwindow_width = 2096,        //record different mode's width of grabwindow
-        .grabwindow_height = 1552,        //record different mode's height of grabwindow
+        .grabwindow_width = 2104,        //record different mode's width of grabwindow
+        .grabwindow_height = 1560,        //record different mode's height of grabwindow
         /*     following for MIPIDataLowPwr2HighSpeedSettleDelayCount by different scenario    */
-        .mipi_data_lp2hs_settle_dc = 100,//unit , ns
+        .mipi_data_lp2hs_settle_dc = 85,//unit , ns
         /*     following for GetDefaultFramerateByScenario()    */
         .max_framerate = 300,
     },
@@ -76,9 +76,9 @@ static imgsensor_info_struct imgsensor_info = {
         .framelength = 3328,
         .startx = 0,
         .starty = 0,
-        .grabwindow_width = 4192,
-        .grabwindow_height = 3104,
-        .mipi_data_lp2hs_settle_dc = 100,//unit , ns
+        .grabwindow_width = 4224,
+        .grabwindow_height = 3136,
+        .mipi_data_lp2hs_settle_dc = 85,//unit , ns
         .max_framerate = 300,
 
     },
@@ -88,48 +88,48 @@ static imgsensor_info_struct imgsensor_info = {
         .framelength = 3328,
         .startx = 0,
         .starty = 0,
-        .grabwindow_width = 4192,
-        .grabwindow_height = 3104,
-        .mipi_data_lp2hs_settle_dc = 100,//unit , ns
+        .grabwindow_width = 4208,
+        .grabwindow_height = 3120,
+        .mipi_data_lp2hs_settle_dc = 85,//unit , ns
         .max_framerate = 150,    //less than 13M(include 13M),cap1 max framerate is 24fps,16M max framerate is 20fps, 20M max framerate is 15fps
     },
     .normal_video = {
-        .pclk = 480000000,
-        .linelength = 4800,
+        .pclk = 240000000,
+        .linelength = 2400,
         .framelength = 3328,
         .startx = 0,
         .starty = 0,
-        .grabwindow_width = 4192,
-        .grabwindow_height = 3104,
-        .mipi_data_lp2hs_settle_dc = 100,//unit , ns
+        .grabwindow_width = 2112,
+        .grabwindow_height = 1188,
+        .mipi_data_lp2hs_settle_dc = 85,//unit , ns
         .max_framerate = 300,
     },
     .hs_video = {
-        .pclk = 240000000,
-        .linelength = 2400, //2968,
-        .framelength = 831, //674,
+        .pclk = 246000000,
+        .linelength = 2400, //2400,
+        .framelength = 854, //854,
         .startx = 0,
         .starty = 0,
-        .grabwindow_width = 1280,  //640
-        .grabwindow_height = 720,  //480
-        .mipi_data_lp2hs_settle_dc = 100,//unit , ns
-        .max_framerate = 1200,
+        .grabwindow_width = 1052,  //640
+        .grabwindow_height = 780,  //480
+        .mipi_data_lp2hs_settle_dc = 85,//unit , ns
+        .max_framerate = 1200, //1200
     },
     .slim_video = {
         .pclk = 240000000,
         .linelength = 2400, //9600,//2400,
-        .framelength = 3324, //834,//3328,
+        .framelength = 3328, //834,//3328,
         .startx = 0,
         .starty = 0,
-        .grabwindow_width = 1280,
-        .grabwindow_height = 720,
-        .mipi_data_lp2hs_settle_dc = 100,//unit , ns
+        .grabwindow_width = 1052,
+        .grabwindow_height = 780,
+        .mipi_data_lp2hs_settle_dc = 85,//unit , ns
         .max_framerate = 300,
 
     },
-    .margin = 8,            //sensor framelength & shutter margin
-    .min_shutter = 0x3,        //min shutter
-    .max_frame_length = 0x7fff,//max framelength by sensor register's limitation
+    .margin = 16,            //sensor framelength & shutter margin
+    .min_shutter = 10,        //min shutter
+    .max_frame_length = 0x7ff0,//max framelength by sensor register's limitation
     .ae_shut_delay_frame = 0,    //shutter delay frame for AE cycle, 2 frame with ispGain_delay-shut_delay=2-0=2
     .ae_sensor_gain_delay_frame = 0,//sensor gain delay frame for AE cycle,2 frame with ispGain_delay-sensor_gain_delay=2-0=2
     .ae_ispGain_delay_frame = 2,//isp gain delay frame for AE cycle
@@ -137,11 +137,11 @@ static imgsensor_info_struct imgsensor_info = {
     .ihdr_le_firstline = 0,  //1,le first ; 0, se first
     .sensor_mode_num = 5,      //support sensor mode num
 
-    .cap_delay_frame = 3,        //enter capture delay frame num
-    .pre_delay_frame = 2,         //enter preview delay frame num
-    .video_delay_frame = 2,        //enter video delay frame num
-    .hs_video_delay_frame = 2,    //enter high speed video  delay frame num
-    .slim_video_delay_frame = 2,//enter slim video delay frame num
+    .cap_delay_frame = 0,        //enter capture delay frame num
+    .pre_delay_frame = 0,         //enter preview delay frame num
+    .video_delay_frame = 0,        //enter video delay frame num
+    .hs_video_delay_frame = 0,    //enter high speed video  delay frame num
+    .slim_video_delay_frame = 0,//enter slim video delay frame num
 
     .isp_driving_current = ISP_DRIVING_8MA, //mclk driving current
     .sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,//sensor_interface_type
@@ -172,13 +172,13 @@ static imgsensor_struct imgsensor = {
 
 /* Sensor output window information */
 static SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[5] =
-{{ 4256, 3152, 0, 4, 4256, 3144, 2128, 1572, 8, 2, 2112, 1568, 0, 0, 2096, 1552}, // Preview
- { 4256, 3152, 12, 4, 4232, 3144, 4232, 3144, 4, 4, 4224, 3136, 0, 0, 4192, 3104}, // capture
- { 4256, 3152, 12, 4, 4232, 3144, 4232, 3144, 4, 4, 4224, 3136, 0, 0, 4192, 3104}, // video
+{{ 4256, 3152, 12, 0, 4224, 3136, 2112, 1568, 4, 4, 2104, 1560, 0, 0, 2104, 1560}, // Preview
+ { 4256, 3152, 12, 0, 4232, 3152, 4232, 3152, 4, 8, 4224, 3136, 0, 0, 4224, 3136}, // capture
+ { 4256, 3152, 0, 8, 4256, 3144, 2128, 1572, 8, 192, 2112, 1188, 0, 0, 2112, 1188}, // video
 // {  4256, 3152, 20, 12,  4216, 3128, 4216, 3128, 4, 4, 4208, 3120, 0, 0, 4192, 3104}, // video
 // { 4256, 3152, 0, 376, 4256, 2392, 1064, 598, 8, 2, 1056, 594, 208, 56, 640, 480}, //high speed video
- { 4256, 3152, 824, 842, 2608, 1468, 1304, 734, 4, 2, 1296, 730, 0, 0, 1280, 720},// high speed video  video
- { 4256, 3152, 824, 842, 2608, 1468, 1304, 734, 4, 2, 1296, 730, 0, 0, 1280, 720}};// slim video
+ { 4256, 3152, 12, 0, 4224, 3136, 1056, 784, 2, 2, 1052, 780, 0, 0, 1052, 780},// high speed video  video
+ { 4256, 3152, 12, 0, 4224, 3136, 1056, 784, 2, 2, 1052, 780, 0, 0, 1052, 780}};// slim video
 
 
 //wangjie, otp
